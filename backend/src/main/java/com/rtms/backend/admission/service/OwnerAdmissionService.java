@@ -1,4 +1,5 @@
 package com.rtms.backend.admission.service;
+import com.rtms.backend.common.storage.FileStorageService;
 import com.rtms.backend.admission.dto.AdmissionDocumentMetadataRequest;
 import com.rtms.backend.admission.dto.AdmissionDocumentResponse;
 import com.rtms.backend.admission.dto.AdmissionSummaryResponse;
@@ -54,11 +55,11 @@ public class OwnerAdmissionService {
     private final AdmissionApplicationRepository admissions;
     private final CandidateHorseProfileRepository candidates;
     private final AdmissionDocumentRepository documents;
-    private final AdmissionFileStorage fileStorage;
+    private final FileStorageService fileStorage;
 
     public OwnerAdmissionService(AdmissionApplicationRepository admissions,
             CandidateHorseProfileRepository candidates, AdmissionDocumentRepository documents,
-            AdmissionFileStorage fileStorage) {
+            FileStorageService fileStorage) {
         this.admissions = admissions;
         this.candidates = candidates;
         this.documents = documents;
@@ -126,7 +127,7 @@ public class OwnerAdmissionService {
             MultipartFile file = files.get(i);
             AdmissionDocumentMetadataRequest item = metadata.get(i);
 
-            String key = fileStorage.store(file);
+            String key = fileStorage.store(file, admissionFolder(application.getId()));
             storedKeys.add(key);
 
             AdmissionDocument document = new AdmissionDocument();
@@ -153,7 +154,7 @@ public class OwnerAdmissionService {
                     String imageUrl = documents.findByAdmissionId(admission.getId()).stream()
                             .filter(d -> com.rtms.backend.admission.enums.AdmissionDocumentType.HORSE_PHOTO.equals(d.getDocumentType()))
                             .findFirst()
-                            .map(fileStorage::downloadUrl)
+                            .map(this::documentUrl)
                             .orElse(null);
                     return new AdmissionSummaryResponse(admission.getId(), admission.getStatus(),
                             candidate.getName(), candidate.getBreed(), candidate.getDateOfBirth(),
@@ -191,7 +192,7 @@ public class OwnerAdmissionService {
         if (note != null && note.length() > 2000) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Document note is too long");
         }
-        String key = fileStorage.store(file);
+        String key = fileStorage.store(file, admissionFolder(admissionId));
         try {
             AdmissionDocument document = new AdmissionDocument();
             document.setAdmissionId(admissionId);
@@ -202,7 +203,7 @@ public class OwnerAdmissionService {
             document.setNote(trimNullable(note));
             return toDocumentResponse(documents.save(document));
         } catch (RuntimeException ex) {
-            fileStorage.deleteIfLocal(key);
+            fileStorage.delete(key);
             throw ex;
         }
     }
@@ -240,9 +241,20 @@ public class OwnerAdmissionService {
         if (!allowed) throw new org.springframework.security.access.AccessDeniedException("Admission is not assigned to you");
     }
 
+    /** Where a client loads this document from: its cloud URL, or this API when it is on local disk. */
+    private String documentUrl(AdmissionDocument document) {
+        return fileStorage.publicUrl(document.getFileUrl(),
+                "/api/admissions/" + document.getAdmissionId() + "/documents/" + document.getId() + "/file");
+    }
+
+    /** Storage folder that groups every document of one admission. */
+    private static String admissionFolder(Long admissionId) {
+        return "rtms/admissions/" + admissionId;
+    }
+
     public AdmissionDocumentResponse toDocumentResponse(AdmissionDocument document) {
         return new AdmissionDocumentResponse(document.getId(), document.getDocumentType(),
-                fileStorage.downloadUrl(document), document.getOriginalFileName(), document.getRecordDate(), document.getNote(),
+                documentUrl(document), document.getOriginalFileName(), document.getRecordDate(), document.getNote(),
                 document.getUploadedAt(), MEDICAL_TYPES.contains(document.getDocumentType()));
     }
 
@@ -361,7 +373,7 @@ public class OwnerAdmissionService {
                     public void afterCompletion(int status) {
                         if (status == STATUS_ROLLED_BACK) {
                             for (String key : storedKeys) {
-                                fileStorage.deleteIfLocal(key);
+                                fileStorage.delete(key);
                             }
                         } else if (status == STATUS_UNKNOWN) {
                             log.error(

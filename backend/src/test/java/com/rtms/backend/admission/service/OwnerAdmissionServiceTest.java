@@ -1,5 +1,6 @@
 package com.rtms.backend.admission.service;
 
+import com.rtms.backend.common.storage.FileStorageService;
 import com.rtms.backend.admission.dto.AdmissionDocumentMetadataRequest;
 import com.rtms.backend.admission.dto.CreateOwnerAdmissionRequest;
 import com.rtms.backend.admission.entity.AdmissionApplication;
@@ -31,7 +32,7 @@ class OwnerAdmissionServiceTest {
     private AdmissionApplicationRepository admissions;
     private CandidateHorseProfileRepository candidates;
     private AdmissionDocumentRepository documents;
-    private AdmissionFileStorage files;
+    private FileStorageService files;
     private OwnerAdmissionService service;
     private AtomicLong sequence;
 
@@ -40,7 +41,7 @@ class OwnerAdmissionServiceTest {
         admissions = mock(AdmissionApplicationRepository.class);
         candidates = mock(CandidateHorseProfileRepository.class);
         documents = mock(AdmissionDocumentRepository.class);
-        files = mock(AdmissionFileStorage.class);
+        files = mock(FileStorageService.class);
         service = new OwnerAdmissionService(admissions, candidates, documents, files);
         sequence = new AtomicLong(100);
         when(admissions.save(any())).thenAnswer(inv -> {
@@ -183,12 +184,12 @@ class OwnerAdmissionServiceTest {
         var application = new AdmissionApplication();
         application.setId(3L); application.setOwnerId(7L);
         when(admissions.findByIdForUpdate(3L)).thenReturn(Optional.of(application));
-        when(files.store(any())).thenReturn("local:test.jpg");
+        when(files.store(any(), any())).thenReturn("local:test.jpg");
         when(documents.save(any())).thenAnswer(inv -> {
             AdmissionDocument doc = inv.getArgument(0);
             doc.setId(33L); return doc;
         });
-        when(files.downloadUrl(any())).thenReturn("/api/admissions/3/documents/33/file");
+        when(files.publicUrl(any(), any())).thenReturn("/api/admissions/3/documents/33/file");
         var file = new MockMultipartFile("file", "C:\\fakepath\\photo.jpg", "image/jpeg", new byte[]{1,2,3});
         var result = service.upload(7L, 3L, AdmissionDocumentType.HORSE_PHOTO,
                 LocalDate.of(2026, 9, 1), "Arrival", file);

@@ -22,6 +22,7 @@ $oldProfile  = $env:SPRING_PROFILES_ACTIVE
 $oldUrl      = $env:DB_URL
 $oldUsername = $env:DB_USERNAME
 $oldPassword = $env:DB_PASSWORD
+$oldCloudinary = $env:CLOUDINARY_URL
 
 try {
     # Load .env.cloud into current process
@@ -60,6 +61,7 @@ finally {
     $env:DB_URL = $oldUrl
     $env:DB_USERNAME = $oldUsername
     $env:DB_PASSWORD = $oldPassword
+    $env:CLOUDINARY_URL = $oldCloudinary
 
     Write-Host ""
     Write-Host "Cloud environment cleared. Terminal restored." -ForegroundColor Yellow

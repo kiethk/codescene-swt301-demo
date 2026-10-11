@@ -1,4 +1,5 @@
 package com.rtms.backend.admission.service;
+import com.rtms.backend.common.storage.FileStorageService;
 import com.rtms.backend.admission.enums.AdmissionDocumentType;
 import com.rtms.backend.medical.entity.CareSchedule;
 
@@ -62,7 +63,7 @@ public class AdmissionQueryService {
     private final AdmissionDocumentRepository admissionDocumentRepository;
     private final StableStallRepository stableStallRepository;
     private final HealthRecordRepository healthRecordRepository;
-    private final AdmissionFileStorage fileStorage;
+    private final FileStorageService fileStorage;
     private final UserRepository userRepository;
     private final CareScheduleRepository careScheduleRepository;
 
@@ -73,7 +74,7 @@ public class AdmissionQueryService {
             AdmissionDocumentRepository admissionDocumentRepository,
             StableStallRepository stableStallRepository,
             HealthRecordRepository healthRecordRepository,
-            AdmissionFileStorage fileStorage,
+            FileStorageService fileStorage,
             UserRepository userRepository,
             CareScheduleRepository careScheduleRepository) {
         this.admissionApplicationRepository = admissionApplicationRepository;
@@ -92,7 +93,7 @@ public class AdmissionQueryService {
             AdmissionDocumentRepository admissionDocumentRepository,
             StableStallRepository stableStallRepository,
             HealthRecordRepository healthRecordRepository,
-            AdmissionFileStorage fileStorage,
+            FileStorageService fileStorage,
             UserRepository userRepository) {
         this(admissionApplicationRepository, candidateHorseProfileRepository, admissionDocumentRepository,
                 stableStallRepository, healthRecordRepository, fileStorage, userRepository, null);
@@ -281,7 +282,7 @@ public class AdmissionQueryService {
                 .filter(d -> com.rtms.backend.admission.enums.AdmissionDocumentType.HORSE_PHOTO
                         .equals(d.getDocumentType()))
                 .findFirst()
-                .map(fileStorage::downloadUrl)
+                .map(this::documentUrl)
                 .orElse(null);
 
         return new AdmissionSummaryResponse(
@@ -298,9 +299,15 @@ public class AdmissionQueryService {
                 admission.getTrainerReviewedAt());
     }
 
+    /** Where a client loads this document from: its cloud URL, or this API when it is on local disk. */
+    private String documentUrl(AdmissionDocument document) {
+        return fileStorage.publicUrl(document.getFileUrl(),
+                "/api/admissions/" + document.getAdmissionId() + "/documents/" + document.getId() + "/file");
+    }
+
     private AdmissionDocumentResponse toDocumentResponse(AdmissionDocument document) {
         return new AdmissionDocumentResponse(document.getId(), document.getDocumentType(),
-                fileStorage.downloadUrl(document), document.getOriginalFileName(),
+                documentUrl(document), document.getOriginalFileName(),
                 document.getRecordDate(),
                 document.getNote(), document.getUploadedAt(), isMedical(document));
     }

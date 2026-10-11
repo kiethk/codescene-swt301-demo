@@ -1,5 +1,5 @@
 package com.rtms.backend.stable.service;
-import com.rtms.backend.admission.service.AdmissionFileStorage;
+import com.rtms.backend.common.storage.FileStorageService;
 import com.rtms.backend.horse.entity.Horse;
 import com.rtms.backend.medical.entity.CareSchedule;
 import com.rtms.backend.medical.enums.CareType;
@@ -39,7 +39,7 @@ class GroomIncidentReportServiceTest {
     private HorseRepository horseRepository;
 
     @Mock
-    private AdmissionFileStorage fileStorage;
+    private FileStorageService fileStorage;
 
     @Mock
     private com.rtms.backend.medical.repository.CareScheduleRepository careScheduleRepository;
@@ -182,14 +182,14 @@ class GroomIncidentReportServiceTest {
         org.springframework.web.multipart.MultipartFile file =
                 mock(org.springframework.web.multipart.MultipartFile.class);
         when(file.getContentType()).thenReturn("image/jpeg");
-        when(fileStorage.store(file)).thenReturn("local:new.jpg");
+        when(fileStorage.store(file, "rtms/incidents/10")).thenReturn("local:new.jpg");
 
         AuthenticatedUser groom = new AuthenticatedUser(5L, "groom@example.com", "GROOM");
 
         GroomIncidentReport updated = incidentReportService.attachImage(10L, file, groom);
 
         assertEquals("local:new.jpg", updated.getImageUrl());
-        verify(fileStorage).deleteIfLocal("local:old.jpg");
+        verify(fileStorage).delete("local:old.jpg");
     }
 
     @Test

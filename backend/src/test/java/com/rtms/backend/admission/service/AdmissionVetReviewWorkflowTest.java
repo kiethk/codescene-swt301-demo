@@ -1,4 +1,5 @@
 package com.rtms.backend.admission.service;
+import com.rtms.backend.common.storage.FileStorageService;
 import com.rtms.backend.admission.dto.VetAdmissionQueueItemResponse;
 import com.rtms.backend.admission.dto.VetReviewRequest;
 import com.rtms.backend.admission.entity.AdmissionApplication;
@@ -94,7 +95,7 @@ class AdmissionVetReviewWorkflowTest {
     @Mock
     private AdmissionDocumentRepository admissionDocumentRepository;
     @Mock
-    private AdmissionFileStorage fileStorage;
+    private FileStorageService fileStorage;
 
     private CareScheduleService careScheduleService;
     private AdmissionQueryService admissionQueryService;
