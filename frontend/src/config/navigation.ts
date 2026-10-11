@@ -97,7 +97,7 @@ export function getNavigationForRole(role: Role): NavSection[] {
             { id: 'care-tasks', label: 'Daily Tasks', icon: 'list', href: '/groom/tasks' },
             { id: 'incidents', label: 'Incidents', icon: 'alert-triangle', href: '/groom/incidents' },
             { id: 'admissions', label: 'Admissions', icon: 'clipboard', href: '/groom/admissions' },
-            { id: 'stable', label: 'Stable', icon: 'building' },
+            { id: 'stable', label: 'Stable', icon: 'building', href: '/groom/stable' },
           ],
         },
       ];

@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { Panel } from '@/components/ui/Panel';
 import { Pill } from '@/components/ui/StatusBadge';
+import { ProtectedImage } from '@/components/ui/ProtectedImage';
 import { admissionsApi } from '../services/api';
 import { displayError } from '@/lib/display';
 import type {
@@ -264,19 +265,12 @@ export function UrgentCaseView({ scheduleId }: { scheduleId: number }) {
           </section>
 
           {urgentCase.imageUrl && (
-            <a
-              href={admissionsApi.assetUrl(urgentCase.imageUrl)}
-              target="_blank"
-              rel="noreferrer"
-              className="block overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-border)]"
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={admissionsApi.assetUrl(urgentCase.imageUrl)}
-            alt="Urgent case report"
-                className="max-h-[28rem] w-full object-contain"
-              />
-            </a>
+            <ProtectedImage
+              src={urgentCase.imageUrl}
+              alt="Urgent case report"
+              openOnClick
+              className="max-h-[28rem] w-full object-contain"
+            />
           )}
 
           {error && (

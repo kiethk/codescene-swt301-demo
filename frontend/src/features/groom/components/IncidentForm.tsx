@@ -21,7 +21,7 @@ const SEVERITY_OPTIONS: { value: IncidentSeverity; label: string; hint: string; 
   { value: 'CRITICAL', label: 'Critical', hint: 'A health emergency requiring an immediate call.', tone: 'text-[var(--color-danger)] font-semibold' },
 ];
 
-export function IncidentForm() {
+export function IncidentForm({ initialHorseId }: { initialHorseId?: number } = {}) {
   const router = useRouter();
   const { user } = useAuth();
 
@@ -61,7 +61,9 @@ export function IncidentForm() {
 
         setHorses(myHorses);
         if (myHorses.length > 0) {
-          setHorseId(myHorses[0].id);
+          // Opened from a stall on the Stable screen: start on that horse when it is one of the Groom's own.
+          const preselected = myHorses.find((h) => h.id === initialHorseId);
+          setHorseId((preselected ?? myHorses[0]).id);
         }
       } catch (err) {
         console.error('Unable to load horse and stall data:', err);
@@ -74,7 +76,7 @@ export function IncidentForm() {
     if (user?.userId) {
       loadData();
     }
-  }, [user?.userId]);
+  }, [user?.userId, initialHorseId]);
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0] ?? null;

@@ -6,7 +6,9 @@ import { Toaster as SonnerToaster } from 'sonner';
 export function Toaster() {
   return (
     <SonnerToaster
-      position="bottom-right"
+      position="top-right"
+      // Below the top bar, so a toast never covers the notification bell.
+      offset={{ top: "calc(var(--topbar-height) + 0.75rem)", right: "1.5rem" }}
       closeButton
       duration={5000}
       style={{ zIndex: 'var(--z-toast)' }}

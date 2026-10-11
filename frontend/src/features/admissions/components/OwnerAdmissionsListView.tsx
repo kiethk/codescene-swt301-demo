@@ -6,37 +6,11 @@ import {Panel} from '@/components/ui/Panel';
 import {EmptyState, ListSkeleton} from '@/components/ui/states';
 import {Notice} from '@/components/ui/Notice';
 import {HorseAvatar} from '@/components/ui/HorseAvatar';
-import {admissionsApi} from '@/features/admissions/services/api';
 import {ownerAdmissionApi} from '@/features/admissions/services/ownerApi';
 import type {AdmissionStatus, AdmissionSummaryResponse} from '../types';
 import {AdmissionTable} from '../shared/components/AdmissionTable';
 import {AdmissionListLayout} from '../shared/components/AdmissionListLayout';
 import {AdmissionFilterBar, FilterDateRange, FilterSelect} from '../shared/components/AdmissionFilterBar';
-
-function AdmissionHorseAvatar({ name, imageUrl }: { name: string; imageUrl?: string | null }) {
-  const [loadedImage, setLoadedImage] = useState<{ source: string; url: string } | null>(null);
-  const image = loadedImage && loadedImage.source === imageUrl ? loadedImage.url : null;
-
-  useEffect(() => {
-    if (!imageUrl) return;
-
-    const controller = new AbortController();
-    let objectUrl: string | undefined;
-    admissionsApi.getDocumentFile(imageUrl, controller.signal).then((blob) => {
-      if (controller.signal.aborted) return;
-      if (!blob.type.startsWith('image/')) return;
-      objectUrl = URL.createObjectURL(blob);
-      setLoadedImage({ source: imageUrl, url: objectUrl });
-    }).catch(() => undefined);
-
-    return () => {
-      controller.abort();
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [imageUrl]);
-
-  return <HorseAvatar name={name} image={image} size={32} rounded="md" />;
-}
 
 interface OwnerListFilters {
   search: string;
@@ -123,7 +97,7 @@ export function OwnerAdmissionsListView() {
               emptyAction={<Button size="sm" onClick={clear}>Clear filters</Button>}
               detailHref={(id) => `/owner/admissions/${id}`}
               renderAvatar={(admission) => (
-                <AdmissionHorseAvatar name={admission.candidateName} imageUrl={admission.imageUrl} />
+                <HorseAvatar name={admission.candidateName} image={admission.imageUrl} size={32} rounded="md" />
               )}
             />
           )}

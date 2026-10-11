@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { Panel } from '@/components/ui/Panel';
 import { Pill } from '@/components/ui/StatusBadge';
 import { Icon } from '@/components/ui/Icon';
+import { ProtectedImage } from '@/components/ui/ProtectedImage';
 import { FilterChips } from '@/components/ui/SegmentedControl';
 import { formatDateTime } from '@/lib/display';
 import { EmptyState, ListSkeleton } from '@/components/ui/states';
@@ -172,12 +173,10 @@ export function IncidentList() {
                   {/* Incident image */}
                   {imgSrc && (
                     <div className="pt-1">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
+                      <ProtectedImage
                         src={imgSrc}
                         alt={`Incident image: ${report.title}`}
                         className="max-h-56 max-w-sm rounded-[var(--radius-md)] border border-[var(--color-border)] object-cover shadow-[var(--shadow-panel)]"
-                        loading="lazy"
                       />
                     </div>
                   )}

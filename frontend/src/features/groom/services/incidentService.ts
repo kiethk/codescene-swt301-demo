@@ -7,7 +7,6 @@ interface ApiResponse<T> {
   message?: string;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
 export const incidentApi = {
   list: async (status?: string): Promise<IncidentReport[]> => {
@@ -36,13 +35,9 @@ export const incidentApi = {
   },
 
   /**
-   * Resolve the image URL for display.
-   * A "local:" imageUrl points to the system endpoint; external URLs are used as-is.
+   * API path of the report's image, or null when it has none. The endpoint checks the viewer,
+   * so render it with <ProtectedImage>, never a plain <img>.
    */
-  imageSrc: (report: IncidentReport): string | null => {
-    if (!report.imageUrl) return null;
-    return report.imageUrl.startsWith('local:')
-      ? `${API_URL}/api/groom-incident-reports/${report.id}/image`
-      : report.imageUrl;
-  },
+  imageSrc: (report: IncidentReport): string | null =>
+    report.imageUrl ? `/api/groom-incident-reports/${report.id}/image` : null,
 };

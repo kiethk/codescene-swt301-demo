@@ -1,9 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { Button } from '@/components/ui/Button';
+import { Button, IconButton } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
-import { formatDate } from '@/lib/display';
+import { displayError, formatDate } from '@/lib/display';
+import { openProtectedFile } from '@/lib/protectedFile';
+import { toast } from '@/lib/toast';
 import { Panel, SectionTitle } from '@/components/ui/Panel';
 import type { AdmissionDocument } from '../../types';
 import { AdmissionDocumentPreview } from './AdmissionDocumentPreview';
@@ -50,9 +52,15 @@ export function AdmissionDocumentsSection({ documents, assetUrl }: { documents: 
                     {documentNames[document.documentType] || document.documentType} · Recorded {date(document.recordDate)} · Uploaded {date(document.uploadedAt)}
                   </p>
                 </div>
-                <a href={assetUrl(document.fileUrl)} target="_blank" rel="noreferrer" aria-label={`Open ${document.originalFileName || documentNames[document.documentType] || document.documentType} in new tab`} className="shrink-0 rounded p-1 text-[var(--color-text-muted)] hover:text-[var(--color-primary)] focus-visible:outline-2 focus-visible:outline-[var(--color-focus)]">
-                  <Icon name="external-link" size={14} />
-                </a>
+                <IconButton
+                  icon="external-link"
+                  size="sm"
+                  label={`Open ${document.originalFileName || documentNames[document.documentType] || document.documentType} in new tab`}
+                  onClick={() => {
+                    openProtectedFile(document.fileUrl).catch((error) => toast.error(displayError(error, 'Unable to open the file.')));
+                  }}
+                  className="shrink-0"
+                />
               </li>
             ))}
           </ul>

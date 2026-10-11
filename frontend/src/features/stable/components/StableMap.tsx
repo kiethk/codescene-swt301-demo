@@ -2,17 +2,25 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { Button } from '@/components/ui/Button';
-import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import { Panel } from '@/components/ui/Panel';
-import { Pill } from '@/components/ui/StatusBadge';
-import { EmptyState, ListSkeleton } from '@/components/ui/states';
-import { PageHeader } from '@/components/ui/PageHeader';
-import { ScreenLayout } from '@/components/ui/ScreenLayout';
+import {
+  Button,
+  ConfirmDialog,
+  EmptyState,
+  FieldLabel,
+  ListSkeleton,
+  PageHeader,
+  Panel,
+  ScreenLayout,
+} from '@/components/ui';
+import { horseService } from '@/features/horses/services/horseService';
+import type { HorseSpecialty } from '@/features/horses/types';
 import { stableApi } from '../services/stableService';
 import type { Area, Horse, StableStall, UserSummary } from '../types';
+import { StableFloorPlan } from '../shared/components/StableFloorPlan';
+import { StallDetailPanel } from '../shared/components/StallDetailPanel';
 import { AssignHorseDialog } from './AssignHorseDialog';
 
+/** The Head Trainer's view of the stable: assign horses to stalls and see which groom looks after each. */
 export function StableMap() {
   const { user } = useAuth();
   const [areas, setAreas] = useState<Area[]>([]);
@@ -25,7 +33,7 @@ export function StableMap() {
    */
   const [unassignedHorses, setUnassignedHorses] = useState<Horse[]>([]);
   /**
-   * Used only to show the Groom's NAME on each stall cell.
+   * Used only to show the Groom's NAME on each stall.
    *
    * Trainers no longer assign Grooms (V63 — that belongs to the Club
    * Manager), but they still need to know who cares for which horse to coordinate lots: when two
@@ -36,6 +44,8 @@ export function StableMap() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [selectedStallId, setSelectedStallId] = useState<number | null>(null);
+  const [specialty, setSpecialty] = useState<{ horseId: number; value: HorseSpecialty } | null>(null);
   const [assignHorseStall, setAssignHorseStall] = useState<StableStall | null>(null);
   /** The stall waiting for unassign confirmation. */
   const [unassignStall, setUnassignStall] = useState<StableStall | null>(null);
@@ -59,7 +69,7 @@ export function StableMap() {
       setGrooms(groomsRes);
       setUnassignedHorses(unassignedRes);
     } catch (err) {
-        console.error('Failed to load stable data:', err);
+      console.error('Failed to load stable data:', err);
       setError('Unable to load the stable map. Please try again.');
     } finally {
       setLoading(false);
@@ -89,20 +99,23 @@ export function StableMap() {
     const filtered = areas.filter(
       (a) => a.type === 'REGULAR' && (user?.userId ? a.trainerId === user.userId : true),
     );
-    const shown = filtered.length > 0 ? filtered : areas.filter((a) => a.type === 'REGULAR');
-    // The API returns areas in no particular order, so sort them by code: A before B.
-    return [...shown].sort((a, b) => a.code.localeCompare(b.code, 'en', { numeric: true }));
+    return filtered.length > 0 ? filtered : areas.filter((a) => a.type === 'REGULAR');
   }, [areas, user]);
 
-  const stallsByAreaId = useMemo(() => {
-    const m = new Map<number, StableStall[]>();
-    stalls.forEach((s) => {
-      const list = m.get(s.areaId) ?? [];
-      list.push(s);
-      m.set(s.areaId, list);
-    });
-    return m;
-  }, [stalls]);
+  const selectedStall = stalls.find((stall) => stall.id === selectedStallId) ?? null;
+  const selectedHorse = selectedStall ? horseByStallId.get(selectedStall.id) : undefined;
+  const selectedGroom = selectedStall?.groomId ? groomById.get(selectedStall.groomId) : undefined;
+  const selectedOccupied = !!selectedStall && (selectedStall.status === 'OCCUPIED' || !!selectedHorse);
+  const selectedHorseId = selectedHorse?.id;
+
+  useEffect(() => {
+    if (!selectedHorseId) return;
+    let active = true;
+    horseService.getSpecialty(selectedHorseId)
+      .then((value) => { if (active) setSpecialty({ horseId: selectedHorseId, value }); })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [selectedHorseId]);
 
   if (loading) return <ListSkeleton rows={4} />;
 
@@ -114,6 +127,9 @@ export function StableMap() {
     );
   }
 
+  const groomLabel = (stall: StableStall) =>
+    stall.groomId ? groomById.get(stall.groomId)?.fullName ?? `Groom #${stall.groomId}` : null;
+
   return (
     <ScreenLayout variant="dashboard">
       <PageHeader
@@ -122,123 +138,62 @@ export function StableMap() {
         actions={<Button variant="secondary" size="sm" icon="refresh" onClick={() => loadAll()}>Refresh</Button>}
       />
 
-      {myAreas.length === 0 ? (
-        <Panel padded>
-          <EmptyState
-            icon="activity"
-            title="No training areas assigned"
-            description="You have not been assigned to manage a regular stable area."
-          />
-        </Panel>
-      ) : (
-        myAreas.map((area) => {
-          const areaStalls = [...(stallsByAreaId.get(area.id) ?? [])].sort((a, b) => a.stallNumber - b.stallNumber);
-          return (
-            <Panel key={area.id} padded>
-              <div className="mb-4 flex items-center justify-between border-b border-[var(--color-border)] pb-3">
-                <div className="flex items-center gap-2">
-                  <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">
-                    Khu {area.code} — {area.name}
-                  </h2>
-                  <Pill tone="primary" size="sm">
-                    {areaStalls.length} stalls
-                  </Pill>
-                </div>
-              </div>
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_20rem] xl:items-start">
+        <StableFloorPlan
+          lens="trainer"
+          areas={myAreas}
+          stalls={stalls}
+          horseByStallId={horseByStallId}
+          selectedStallId={selectedStallId}
+          onSelectStall={(stall) => setSelectedStallId(stall.id)}
+          emptyTitle="No training areas assigned"
+          emptyDescription="You have not been assigned to manage a regular stable area."
+          cellFooter={(stall) => (
+            <span className="block truncate text-xs text-[var(--color-text-secondary)]">
+              {groomLabel(stall) ?? <span className="italic text-[var(--color-text-muted)]">No groom</span>}
+            </span>
+          )}
+        />
 
-              {areaStalls.length === 0 ? (
-                <p className="text-xs text-[var(--color-text-muted)]">This area has no stalls yet.</p>
+        <StallDetailPanel
+          stall={selectedStall}
+          area={areas.find((area) => area.id === selectedStall?.areaId)}
+          horse={selectedHorse}
+          specialty={specialty && specialty.horseId === selectedHorseId ? specialty.value : null}
+          hint="Pick a stall to assign a horse to it, remove its horse, or see which groom looks after it."
+          actions={
+            selectedStall && (
+              selectedOccupied ? (
+                <Button
+                  variant="destructive"
+                  disabled={!selectedHorse}
+                  onClick={() => {
+                    setUnassignError(null);
+                    setUnassignStall(selectedStall);
+                  }}
+                >
+                  Remove horse
+                </Button>
               ) : (
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-                  {areaStalls.map((stall) => {
-                    const currentHorse = horseByStallId.get(stall.id);
-                    const currentGroom = stall.groomId ? groomById.get(stall.groomId) : null;
-                    const isOccupied = stall.status === 'OCCUPIED' || !!currentHorse;
-
-                    return (
-                      <div
-                        key={stall.id}
-                        className={`flex flex-col justify-between rounded-[var(--radius-md)] border p-3 transition ${
-                          isOccupied
-                            ? 'border-[var(--color-border-strong)] bg-[var(--color-surface-muted)]'
-                            : 'border-dashed border-[var(--color-border)] bg-[var(--color-surface)]'
-                        }`}
-                      >
-                        <div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm font-bold text-[var(--color-text-primary)]">
-                              Stall {stall.stallCode}
-                            </span>
-                            <span
-                              className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                                isOccupied
-                                  ? 'bg-[var(--color-success-soft)] text-[var(--color-success)]'
-                                  : 'bg-[var(--color-surface-muted)] text-[var(--color-text-secondary)]'
-                              }`}
-                            >
-                              {isOccupied ? 'Occupied' : 'Available'}
-                            </span>
-                          </div>
-
-                          <div className="mt-2 text-xs">
-                            <div className="text-xs text-[var(--color-text-muted)]">Horse:</div>
-                            <div className="font-semibold text-[var(--color-text-primary)] truncate">
-                              {currentHorse ? currentHorse.name : 'No horse assigned'}
-                            </div>
-                            {currentHorse?.breed && (
-                              <div className="text-xs text-[var(--color-text-secondary)]">
-                                {currentHorse.breed}
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="mt-2">
-                            <div className="text-xs text-[var(--color-text-muted)]">Assigned groom:</div>
-                            {stall.groomId ? (
-                              <Pill tone="info" size="sm">
-                                {currentGroom ? currentGroom.fullName : `#${stall.groomId}`}
-                              </Pill>
-                            ) : (
-                              <span className="text-xs text-[var(--color-text-muted)] italic">
-                                Unassigned
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="mt-4 flex gap-1.5 pt-2 border-t border-[var(--color-border)]">
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            className="flex-1"
-                            onClick={() => setAssignHorseStall(stall)}
-                            disabled={isOccupied}
-                          >
-                            {isOccupied ? 'Occupied' : 'Assign horse'}
-                          </Button>
-                          {isOccupied && (
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              className="flex-1 text-[var(--color-danger)] hover:bg-[var(--color-danger-soft)]"
-                              onClick={() => {
-                                setUnassignError(null);
-                                setUnassignStall(stall);
-                              }}
-                            >
-                              Remove horse
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </Panel>
-          );
-        })
-      )}
+                <Button variant="primary" icon="plus" onClick={() => setAssignHorseStall(selectedStall)}>
+                  Assign horse
+                </Button>
+              )
+            )
+          }
+        >
+          {selectedStall && (
+            <div>
+              <FieldLabel>Assigned groom</FieldLabel>
+              <p className="mt-1 text-sm text-[var(--color-text-primary)]">
+                {selectedStall.groomId
+                  ? selectedGroom?.fullName ?? `Groom #${selectedStall.groomId}`
+                  : <span className="italic text-[var(--color-text-muted)]">Unassigned</span>}
+              </p>
+            </div>
+          )}
+        </StallDetailPanel>
+      </div>
 
       {/* Dialogs */}
       <AssignHorseDialog

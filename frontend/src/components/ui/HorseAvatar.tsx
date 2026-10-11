@@ -1,9 +1,11 @@
 'use client';
 
 import { useState } from 'react';
+import { useProtectedFileUrl } from '@/lib/protectedFile';
 
 interface HorseAvatarProps {
   name: string;
+  /** API path or URL of the horse photo. It is loaded with the access token. */
   image?: string | null;
   size?: number;
   rounded?: 'sm' | 'md';
@@ -12,8 +14,9 @@ interface HorseAvatarProps {
 export function HorseAvatar({ name, image, size = 36, rounded = 'sm' }: HorseAvatarProps) {
   const radius = rounded === 'md' ? 'rounded-[var(--radius-md)]' : 'rounded-[var(--radius-sm)]';
   const [failedImage, setFailedImage] = useState<string | null>(null);
+  const { url } = useProtectedFileUrl(image);
 
-  if (!image || failedImage === image) {
+  if (!image || !url || failedImage === image) {
     return (
       <span
         role="img"
@@ -29,7 +32,7 @@ export function HorseAvatar({ name, image, size = 36, rounded = 'sm' }: HorseAva
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={image}
+      src={url}
       alt={`${name} photo`}
       width={size}
       height={size}
