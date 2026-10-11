@@ -4,7 +4,7 @@ import { planProgress } from '../lib/planProgress.ts';
 import { ratingDistribution, ratingTier, ratingTone } from '../lib/rating.ts';
 import { lotFillTone, PLAN_STATUS } from '../lib/status.ts';
 import { hourMarks, minutesOf, stripPosition } from '../lib/timeline.ts';
-import { rangeForPreset, toIsoDate, tomorrowIso } from '../lib/dateRange.ts';
+import { rangeForPreset, rangeLabel, toIsoDate, tomorrowIso } from '../lib/dateRange.ts';
 
 describe('planProgress', () => {
   it('removes cancelled sessions from the denominator so the plan can reach 100%', () => {
@@ -100,5 +100,21 @@ describe('schedule timeline', () => {
   it('marks every full hour of the window', () => {
     assert.deepEqual(hourMarks('06:00:00', '10:00:00').map((m) => m.label), ['06:00', '07:00', '08:00', '09:00', '10:00']);
     assert.equal(hourMarks('06:00:00', '10:00:00')[2].percent, 50);
+  });
+});
+
+describe('range label', () => {
+  const format = (date: string) => `<${date}>`;
+
+  it('names a preset', () => {
+    assert.equal(rangeLabel('30D', {}, format), 'Last 30 days');
+    assert.equal(rangeLabel('ALL', {}, format), 'All time');
+  });
+
+  it('spells out a custom range, open ended on one side', () => {
+    assert.equal(rangeLabel('CUSTOM', { from: '2026-01-01', to: '2026-02-01' }, format), '<2026-01-01> – <2026-02-01>');
+    assert.equal(rangeLabel('CUSTOM', { from: '2026-01-01' }, format), 'From <2026-01-01>');
+    assert.equal(rangeLabel('CUSTOM', { to: '2026-02-01' }, format), 'Until <2026-02-01>');
+    assert.equal(rangeLabel('CUSTOM', {}, format), 'All time');
   });
 });

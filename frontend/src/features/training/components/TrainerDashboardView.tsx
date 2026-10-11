@@ -35,7 +35,7 @@ const columns: DataTableColumn<TrainerDashboardHorse>[] = [
     render: (horse) => (
       <div className="min-w-0">
         <Link
-          href={`/trainer/horses/${horse.horseId}`}
+          href={`/trainer/horses?horseId=${horse.horseId}`}
           className="font-semibold hover:text-[var(--color-primary)] focus-visible:rounded-sm focus-visible:outline-2"
         >
           {horse.horseName}
@@ -115,7 +115,7 @@ const columns: DataTableColumn<TrainerDashboardHorse>[] = [
     header: <span className="sr-only">Actions</span>,
     align: 'right',
     render: (horse) => (
-      <LinkButton href={`/trainer/horses/${horse.horseId}`} size="sm" icon="trending-up">
+      <LinkButton href={`/trainer/horses?horseId=${horse.horseId}`} size="sm" icon="trending-up">
         View fitness
       </LinkButton>
     ),

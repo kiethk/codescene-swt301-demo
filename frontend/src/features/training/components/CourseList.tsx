@@ -119,7 +119,7 @@ export function CourseList() {
   return (
     <PageSection
       title={`Training courses (${courses.length})`}
-      description="Create complete training courses with rotating exercises for horse enrollment."
+      description="Create complete training courses with rotating subjects for horse enrollment."
       actions={
         <>
           <LinkButton href="/trainer/plans/new" size="sm">Enroll horses</LinkButton>

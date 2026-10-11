@@ -30,3 +30,19 @@ export function tomorrowIso(today: Date = new Date()): string {
   next.setDate(next.getDate() + 1);
   return toIsoDate(next);
 }
+
+const PRESET_LABEL: Record<Exclude<DatePreset, 'CUSTOM'>, string> = {
+  '7D': 'Last 7 days',
+  '30D': 'Last 30 days',
+  '90D': 'Last 90 days',
+  ALL: 'All time',
+};
+
+/** Words for a date range, so a statistic always says which period it covers. */
+export function rangeLabel(preset: DatePreset, custom: DateRange, format: (date: string) => string): string {
+  if (preset !== 'CUSTOM') return PRESET_LABEL[preset];
+  if (custom.from && custom.to) return `${format(custom.from)} – ${format(custom.to)}`;
+  if (custom.from) return `From ${format(custom.from)}`;
+  if (custom.to) return `Until ${format(custom.to)}`;
+  return PRESET_LABEL.ALL;
+}

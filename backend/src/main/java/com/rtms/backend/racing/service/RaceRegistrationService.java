@@ -9,6 +9,7 @@ import com.rtms.backend.horse.entity.Horse;
 import com.rtms.backend.racing.entity.RaceRegistration;
 import com.rtms.backend.stable.entity.StableStall;
 import com.rtms.backend.horse.enums.HorseStatus;
+import com.rtms.backend.racing.enums.RaceRegistrationStatus;
 import com.rtms.backend.stable.repository.AreaRepository;
 import com.rtms.backend.horse.repository.HorseRepository;
 import com.rtms.backend.racing.repository.RaceRegistrationRepository;
@@ -88,7 +89,7 @@ public class RaceRegistrationService {
         reg.setPrizeDetails(request.getPrizeDetails() != null ? request.getPrizeDetails().trim() : null);
         reg.setSelectionReason(request.getSelectionReason().trim());
         reg.setTrainerNotes(request.getTrainerNotes() != null ? request.getTrainerNotes().trim() : null);
-        reg.setStatus("PENDING");
+        reg.setStatus(RaceRegistrationStatus.PENDING);
 
         RaceRegistration saved = raceRegistrationRepository.save(reg);
         return new RaceRegistrationResponse(saved, horse.getName(), horse.getRegistrationNumber());
@@ -149,13 +150,13 @@ public class RaceRegistrationService {
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "RESOURCE_NOT_FOUND",
                         "Race nomination #" + id + " not found"));
 
-        if (!"PENDING".equals(registration.getStatus())) {
+        if (registration.getStatus() != RaceRegistrationStatus.PENDING) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "ALREADY_REVIEWED",
                     "This nomination has already been reviewed");
         }
 
-        String status = request.getStatus() == null ? "" : request.getStatus().trim().toUpperCase();
-        if (!"APPROVED".equals(status) && !"REJECTED".equals(status)) {
+        RaceRegistrationStatus status = request.getStatus();
+        if (status != RaceRegistrationStatus.APPROVED && status != RaceRegistrationStatus.REJECTED) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_STATUS",
                     "Status must be APPROVED or REJECTED");
         }

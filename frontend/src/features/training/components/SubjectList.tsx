@@ -46,7 +46,7 @@ export function SubjectList() {
     try {
       setSubjects(await trainingService.getSubjects());
     } catch (cause) {
-      setError(displayError(cause, 'Unable to load the exercise library.'));
+      setError(displayError(cause, 'Unable to load the subject library.'));
     } finally {
       setLoading(false);
     }
@@ -62,11 +62,11 @@ export function SubjectList() {
     setSubmitting(true);
     try {
       await trainingService.createSubject(request);
-      toast.success('Exercise created.');
+      toast.success('Subject created.');
       setShowForm(false);
       await load();
     } catch (cause) {
-      setFormError(displayError(cause, 'Unable to create the exercise.'));
+      setFormError(displayError(cause, 'Unable to create the subject.'));
     } finally {
       setSubmitting(false);
     }
@@ -79,7 +79,7 @@ export function SubjectList() {
       <Panel padded>
         <EmptyState
           icon="alert-triangle"
-          title="Unable to load the exercise library"
+          title="Unable to load the subject library"
           description={error}
           action={<Button size="sm" icon="refresh" onClick={load}>Try again</Button>}
         />
@@ -89,11 +89,11 @@ export function SubjectList() {
 
   return (
     <PageSection
-      title={`Exercise library (${subjects.length})`}
-      description="Standard exercises for building training courses."
+      title={`Subject library (${subjects.length})`}
+      description="Standard subjects for building training courses."
       actions={
         <Button variant="primary" size="sm" onClick={() => setShowForm((open) => !open)}>
-          {showForm ? 'Close form' : 'Create exercise'}
+          {showForm ? 'Close form' : 'Create subject'}
         </Button>
       }
     >
@@ -103,7 +103,7 @@ export function SubjectList() {
 
       {subjects.length === 0 ? (
         <Panel padded>
-          <EmptyState icon="clipboard" title="No exercises yet" description="Create your first exercise to start building a training course." />
+          <EmptyState icon="clipboard" title="No subjects yet" description="Create your first subject to start building a training course." />
         </Panel>
       ) : (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">

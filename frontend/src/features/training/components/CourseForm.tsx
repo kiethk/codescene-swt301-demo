@@ -36,7 +36,7 @@ export function CourseForm({
       return;
     }
     if (rotation.length === 0) {
-      setValidation('Select at least one exercise for the course rotation.');
+      setValidation('Select at least one subject for the course rotation.');
       return;
     }
     setValidation(null);
@@ -54,7 +54,7 @@ export function CourseForm({
   return (
     <Panel padded>
       <form onSubmit={handleSubmit} className="space-y-4">
-        <SectionTitle>Create course with exercise rotation</SectionTitle>
+        <SectionTitle>Create course with subject rotation</SectionTitle>
         {message && <Notice tone="error">{message}</Notice>}
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -64,7 +64,7 @@ export function CourseForm({
           <FormField
             label="Total sessions"
             required
-            hint="Exercises repeat in order until the total number of sessions is reached."
+            hint="Subjects repeat in order until the total number of sessions is reached."
           >
             <Input type="number" min={1} value={totalSessions} onChange={(e) => setTotalSessions(Number(e.target.value))} />
           </FormField>
@@ -88,19 +88,19 @@ export function CourseForm({
         </FormField>
 
         <div className="space-y-2 border-t border-[var(--color-border)] pt-3">
-          <FieldLabel>Exercise rotation ({rotation.length} selected)</FieldLabel>
+          <FieldLabel>Subject rotation ({rotation.length} selected)</FieldLabel>
           <div className="min-h-12 rounded-[var(--radius-md)] border border-dashed border-[var(--color-border-strong)] bg-[var(--color-surface-muted)] p-2">
             {rotation.length === 0 ? (
-              <span className="text-xs text-[var(--color-text-muted)]">No exercises have been added to the rotation.</span>
+              <span className="text-xs text-[var(--color-text-muted)]">No subjects have been added to the rotation.</span>
             ) : (
               <ol className="flex flex-wrap gap-2">
                 {rotation.map((subjectId, index) => (
                   <li key={`${subjectId}-${index}`} className="inline-flex items-center gap-1">
-                    <Pill tone="neutral">#{index + 1} {subjectById.get(subjectId)?.name ?? `Exercise #${subjectId}`}</Pill>
+                    <Pill tone="neutral">#{index + 1} {subjectById.get(subjectId)?.name ?? `Subject #${subjectId}`}</Pill>
                     <IconButton
                       icon="x"
                       size="sm"
-                      label={`Remove exercise ${index + 1} from the rotation`}
+                      label={`Remove subject ${index + 1} from the rotation`}
                       onClick={() => setRotation((current) => current.filter((_, i) => i !== index))}
                     />
                   </li>
@@ -108,7 +108,7 @@ export function CourseForm({
               </ol>
             )}
           </div>
-          <p className="text-xs text-[var(--color-text-muted)]">Select exercises to add them to the rotation in order:</p>
+          <p className="text-xs text-[var(--color-text-muted)]">Select subjects to add them to the rotation in order:</p>
           <div className="flex flex-wrap gap-1.5">
             {subjects.map((subject) => (
               <Button

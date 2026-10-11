@@ -89,7 +89,9 @@ export function StableMap() {
     const filtered = areas.filter(
       (a) => a.type === 'REGULAR' && (user?.userId ? a.trainerId === user.userId : true),
     );
-    return filtered.length > 0 ? filtered : areas.filter((a) => a.type === 'REGULAR');
+    const shown = filtered.length > 0 ? filtered : areas.filter((a) => a.type === 'REGULAR');
+    // The API returns areas in no particular order, so sort them by code: A before B.
+    return [...shown].sort((a, b) => a.code.localeCompare(b.code, 'en', { numeric: true }));
   }, [areas, user]);
 
   const stallsByAreaId = useMemo(() => {
@@ -130,7 +132,7 @@ export function StableMap() {
         </Panel>
       ) : (
         myAreas.map((area) => {
-          const areaStalls = stallsByAreaId.get(area.id) ?? [];
+          const areaStalls = [...(stallsByAreaId.get(area.id) ?? [])].sort((a, b) => a.stallNumber - b.stallNumber);
           return (
             <Panel key={area.id} padded>
               <div className="mb-4 flex items-center justify-between border-b border-[var(--color-border)] pb-3">

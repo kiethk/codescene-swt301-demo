@@ -11,6 +11,7 @@ import com.rtms.backend.horse.entity.Horse;
 import com.rtms.backend.racing.entity.RaceRegistration;
 import com.rtms.backend.stable.entity.StableStall;
 import com.rtms.backend.horse.enums.HorseStatus;
+import com.rtms.backend.racing.enums.RaceRegistrationStatus;
 import com.rtms.backend.stable.repository.AreaRepository;
 import com.rtms.backend.horse.repository.HorseRepository;
 import com.rtms.backend.racing.repository.RaceRegistrationRepository;
@@ -125,7 +126,7 @@ class RaceRegistrationServiceTest {
 
         assertNotNull(res);
         assertEquals(100L, res.getId());
-        assertEquals("PENDING", res.getStatus());
+        assertEquals(RaceRegistrationStatus.PENDING, res.getStatus());
         assertEquals(10L, res.getTrainerId());
         assertEquals("White Dragon Horse", res.getHorseName());
         assertEquals("VN-2026-001", res.getHorseRegistrationNumber());
@@ -377,7 +378,7 @@ class RaceRegistrationServiceTest {
     void testReview_Manager_Success() {
         RaceRegistration reg = new RaceRegistration();
         reg.setId(50L);
-        reg.setStatus("PENDING");
+        reg.setStatus(RaceRegistrationStatus.PENDING);
         reg.setHorseId(42L);
         reg.setTrainerId(10L);
 
@@ -386,12 +387,12 @@ class RaceRegistrationServiceTest {
         when(horseRepository.findById(42L)).thenReturn(Optional.of(createEligibleHorse(42L, 5L)));
 
         ReviewRaceRegistrationRequest req = new ReviewRaceRegistrationRequest();
-        req.setStatus("APPROVED");
+        req.setStatus(RaceRegistrationStatus.APPROVED);
         req.setManagerFeedback("Approved for the horse to take part.");
 
         RaceRegistrationResponse res = raceRegistrationService.review(50L, req, managerUser);
 
-        assertEquals("APPROVED", res.getStatus());
+        assertEquals(RaceRegistrationStatus.APPROVED, res.getStatus());
         assertEquals("Approved for the horse to take part.", res.getManagerFeedback());
         assertEquals(1L, res.getReviewedById());
         assertNotNull(res.getReviewedAt());

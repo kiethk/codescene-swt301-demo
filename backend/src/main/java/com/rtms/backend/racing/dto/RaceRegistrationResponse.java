@@ -1,5 +1,6 @@
 package com.rtms.backend.racing.dto;
 
+import com.rtms.backend.racing.enums.RaceRegistrationStatus;
 import com.rtms.backend.racing.entity.RaceRegistration;
 
 import java.math.BigDecimal;
@@ -27,7 +28,7 @@ public class RaceRegistrationResponse {
     private String prizeDetails;
     private String selectionReason;
     private String trainerNotes;
-    private String status;
+    private RaceRegistrationStatus status;
     private Long reviewedById;
     private String managerFeedback;
     private LocalDateTime reviewedAt;
@@ -205,11 +206,11 @@ public class RaceRegistrationResponse {
         this.trainerNotes = trainerNotes;
     }
 
-    public String getStatus() {
+    public RaceRegistrationStatus getStatus() {
         return status;
     }
 
-    public void setStatus(String status) {
+    public void setStatus(RaceRegistrationStatus status) {
         this.status = status;
     }
 

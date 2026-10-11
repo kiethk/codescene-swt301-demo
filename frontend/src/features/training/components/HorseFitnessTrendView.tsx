@@ -7,9 +7,7 @@ import {
   FilterBar,
   FormField,
   Input,
-  LinkButton,
   Notice,
-  PageHeader,
   Panel,
   ScreenLayout,
   SegmentedControl,
@@ -18,16 +16,21 @@ import {
 import { horseService } from '@/features/horses/services/horseService';
 import type { HorseSpecialty } from '@/features/horses/types';
 import type { Horse } from '@/features/stable/types';
-import { displayError } from '@/lib/display';
+import { displayError, formatDate } from '@/lib/display';
 import { useTrainingRules } from '../hooks/useTrainingRules';
-import { rangeForPreset, type DatePreset, type DateRange } from '../lib/dateRange';
+import { rangeForPreset, rangeLabel, type DatePreset, type DateRange } from '../lib/dateRange';
 import { trainingService } from '../services/trainingService';
 import type { HorseAlert, HorseFitnessTrendItem, ReadinessAssessment } from '../types';
 import { FitnessTrendChart } from './FitnessTrendChart';
 import { HorseAlertList } from './HorseAlertList';
+import { HorseMetricsRow } from './HorseMetricsRow';
 import { HorseProfileHeader } from './HorseProfileHeader';
 import { WorkoutHistoryTable } from './WorkoutHistoryTable';
 
+/**
+ * Everything about one horse: profile, the period to look at, headline numbers, alerts, charts and the session
+ * history. The period bar sits above the numbers so the reader knows what period they describe before reading them.
+ */
 export function HorseFitnessTrendView({ horseId }: { horseId: number }) {
   const rules = useTrainingRules();
 
@@ -79,35 +82,15 @@ export function HorseFitnessTrendView({ horseId }: { horseId: number }) {
     setPreset('CUSTOM');
   }
 
-  const name = horse?.name ?? `Horse #${horseId}`;
-
   return (
     <ScreenLayout variant="detail">
-      <PageHeader
-        title={name}
-        description="Track fitness trends, injury risks and development progress."
-        breadcrumbs={[
-          { label: 'Dashboard', href: '/trainer/dashboard' },
-          { label: 'Horses', href: '/trainer/horses' },
-          { label: name },
-        ]}
-        actions={
-          <>
-            <LinkButton href="/trainer/horses" size="sm" icon="arrow-left">Back to horses</LinkButton>
-            <Button size="sm" icon="refresh" onClick={load} loading={loading}>Refresh</Button>
-          </>
-        }
-      />
-
       {error && <Notice tone="error">{error}</Notice>}
 
-      <HorseProfileHeader horse={horse} horseId={horseId} specialty={specialty} trend={trend} rules={rules} />
-
-      <HorseAlertList alerts={alerts} />
+      <HorseProfileHeader horse={horse} horseId={horseId} specialty={specialty} />
 
       <FilterBar onSubmit={applyCustomRange} aria-label="Date range">
         <div className="space-y-1.5">
-          <FieldLabel>Date range</FieldLabel>
+          <FieldLabel>Period</FieldLabel>
           <SegmentedControl
             label="Date range"
             value={preset}
@@ -128,7 +111,15 @@ export function HorseFitnessTrendView({ horseId }: { horseId: number }) {
           <Input type="date" value={customInputs.to ?? ''} onChange={(e) => setCustomInputs((r) => ({ ...r, to: e.target.value }))} />
         </FormField>
         <Button type="submit" icon="filter">Apply</Button>
+        <Button icon="refresh" onClick={load} loading={loading}>Refresh</Button>
+        <p className="ml-auto self-center text-xs text-[var(--color-text-secondary)]">
+          Showing: <strong className="text-[var(--color-text-primary)]">{rangeLabel(preset, appliedCustom, formatDate)}</strong>
+        </p>
       </FilterBar>
+
+      <HorseMetricsRow trend={trend} rules={rules} />
+
+      <HorseAlertList alerts={alerts} />
 
       {loading && trend.length === 0 ? (
         <Panel padded>

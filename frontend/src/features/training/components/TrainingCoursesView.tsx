@@ -14,12 +14,12 @@ export function TrainingCoursesView() {
     <ScreenLayout variant="list">
       <PageHeader
         title="Training"
-        description="Build exercises, combine them into courses, and enroll horses."
+        description="Build subjects, combine them into courses, and enroll horses."
       />
       <Tabs
         tabs={[
           { id: 'courses', label: 'Training courses', icon: 'activity' },
-          { id: 'subjects', label: 'Exercise library', icon: 'clipboard' },
+          { id: 'subjects', label: 'Subject library', icon: 'clipboard' },
         ]}
         active={tab}
         onChange={(id) => setTab(id as TrainingTab)}

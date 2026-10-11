@@ -69,14 +69,10 @@ export function TrainerRaceDetail({ id }: { id: number }) {
         }
       />
 
-      <Notice tone="info">
-        <strong>Note:</strong> The trainer provided the race information. Management will verify it before approval.
-      </Notice>
-
       {data.status !== 'PENDING' && (
         <Notice
           tone={data.status === 'APPROVED' ? 'success' : 'error'}
-          title={`Management feedback (${data.status === 'APPROVED' ? 'approved' : 'nomination rejected'})`}
+          title={`Management feedback (${data.status === 'APPROVED' ? 'approved' : 'rejected'})`}
         >
           {data.reviewedAt && <p className="mb-1 text-xs opacity-80">Reviewed {formatDateTime(data.reviewedAt)}</p>}
           <p className="text-[var(--color-text-primary)]">{data.managerFeedback || 'No additional comments.'}</p>

@@ -1,18 +1,22 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Button,
   EmptyState,
   FilterChips,
+  FormField,
   LinkButton,
   ListSkeleton,
   PageHeader,
   Panel,
   ProgressBar,
   ScreenLayout,
+  Select,
 } from '@/components/ui';
 import { displayError, formatDate } from '@/lib/display';
+import { useTrainerHorses } from '../hooks/useTrainerHorses';
 import { planProgress } from '../lib/planProgress';
 import { PLAN_STATUS } from '../lib/status';
 import { trainingService } from '../services/trainingService';
@@ -59,6 +63,10 @@ function PlanRow({ plan }: { plan: PlanSummaryResponse }) {
 }
 
 export function PlanList() {
+  const router = useRouter();
+  // The horse filter lives in the URL, so the horse page can link here with its own horse already chosen.
+  const horseId = Number(useSearchParams().get('horseId')) || null;
+  const { horses } = useTrainerHorses();
   const [plans, setPlans] = useState<PlanSummaryResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -68,13 +76,13 @@ export function PlanList() {
     setLoading(true);
     setError(null);
     try {
-      setPlans(await trainingService.getPlans());
+      setPlans(await trainingService.getPlans(horseId ?? undefined));
     } catch (cause) {
       setError(displayError(cause, 'Unable to load training plans.'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [horseId]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -94,16 +102,27 @@ export function PlanList() {
         actions={<LinkButton href="/trainer/plans/new" variant="primary" size="sm" icon="plus">Enroll horses</LinkButton>}
       />
 
-      <FilterChips
-        label="Plan status"
-        value={filter}
-        onChange={setFilter}
-        options={FILTERS.map((status) => ({
-          value: status,
-          label: status === 'ALL' ? 'All' : PLAN_STATUS[status].label,
-          count: status === 'ALL' ? plans.length : plans.filter((plan) => plan.status === status).length,
-        }))}
-      />
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <FilterChips
+          label="Plan status"
+          value={filter}
+          onChange={setFilter}
+          options={FILTERS.map((status) => ({
+            value: status,
+            label: status === 'ALL' ? 'All' : PLAN_STATUS[status].label,
+            count: status === 'ALL' ? plans.length : plans.filter((plan) => plan.status === status).length,
+          }))}
+        />
+        <FormField label="Horse" className="w-56">
+          <Select
+            value={horseId ?? ''}
+            onChange={(e) => router.replace(e.target.value ? `/trainer/plans?horseId=${e.target.value}` : '/trainer/plans')}
+          >
+            <option value="">All horses</option>
+            {horses.map((horse) => <option key={horse.id} value={horse.id}>{horse.name}</option>)}
+          </Select>
+        </FormField>
+      </div>
 
       {loading ? (
         <Panel padded><ListSkeleton rows={6} /></Panel>
