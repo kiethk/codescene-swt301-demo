@@ -2,6 +2,8 @@ package com.rtms.backend.common.storage;
 
 import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
@@ -33,6 +35,7 @@ import java.util.regex.Pattern;
  */
 @Component
 public class FileStorageService {
+    private static final Logger log = LoggerFactory.getLogger(FileStorageService.class);
     private static final String LOCAL_PREFIX = "local:";
     private static final long MAX_BYTES = 10L * 1024 * 1024;
     private static final Map<String, String> EXTENSIONS = Map.of(
@@ -53,6 +56,11 @@ public class FileStorageService {
             @Value("${rtms.storage.cloudinary-url:}") String cloudinaryUrl) {
         this.uploadRoot = Path.of(directory).toAbsolutePath().normalize();
         this.cloudinary = cloudinaryUrl == null || cloudinaryUrl.isBlank() ? null : new Cloudinary(cloudinaryUrl);
+        if (cloudinary == null) {
+            log.info("File storage: local disk at {}", uploadRoot);
+        } else {
+            log.info("File storage: Cloudinary (cloud name: {})", cloudinary.config.cloudName);
+        }
     }
 
     /** Rejects anything that is not a PDF, JPEG, PNG or WebP of at most 10 MB. */
