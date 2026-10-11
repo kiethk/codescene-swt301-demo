@@ -21,6 +21,7 @@ public class TrainerDashboardHorseResponse {
     private List<String> alertTitles = new ArrayList<>();
     private LocalDate startDate;
     private LocalDate endDate;
+    private HorseSpecialtyResponse specialty;
 
     public TrainerDashboardHorseResponse() {
     }
@@ -159,5 +160,13 @@ public class TrainerDashboardHorseResponse {
 
     public void setEndDate(LocalDate endDate) {
         this.endDate = endDate;
+    }
+
+    public HorseSpecialtyResponse getSpecialty() {
+        return specialty;
+    }
+
+    public void setSpecialty(HorseSpecialtyResponse specialty) {
+        this.specialty = specialty;
     }
 }

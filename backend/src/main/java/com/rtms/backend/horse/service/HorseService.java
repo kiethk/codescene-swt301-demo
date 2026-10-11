@@ -1,18 +1,15 @@
 package com.rtms.backend.horse.service;
 import com.rtms.backend.config.GlobalExceptionHandler;
-import com.rtms.backend.training.service.HorseTrainingPlanService;
+import com.rtms.backend.training.service.TrainingWorkoutService;
 
 
 import com.rtms.backend.horse.dto.CreateHorseRequest;
-import com.rtms.backend.notification.dto.HorseAlertResponse;
-import com.rtms.backend.training.dto.HorseFitnessTrendItemResponse;
 import com.rtms.backend.horse.entity.Horse;
 import com.rtms.backend.stable.entity.StableStall;
 import com.rtms.backend.horse.enums.HorseStatus;
 import com.rtms.backend.stable.enums.StallStatus;
 import com.rtms.backend.horse.repository.HorseRepository;
 import com.rtms.backend.stable.repository.StableStallRepository;
-import java.time.LocalDate;
 import com.rtms.backend.security.AuthenticatedUser;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -29,16 +26,16 @@ public class HorseService {
 
     private final HorseRepository horseRepository;
     private final StableStallRepository stableStallRepository;
-    private final HorseTrainingPlanService trainingPlanService;
+    private final TrainingWorkoutService workoutService;
     private final AreaRepository areaRepository;
 
     public HorseService(HorseRepository horseRepository,
                         StableStallRepository stableStallRepository,
-                        @org.springframework.context.annotation.Lazy HorseTrainingPlanService trainingPlanService,
+                        TrainingWorkoutService workoutService,
                         AreaRepository areaRepository) {
         this.horseRepository = horseRepository;
         this.stableStallRepository = stableStallRepository;
-        this.trainingPlanService = trainingPlanService;
+        this.workoutService = workoutService;
         this.areaRepository = areaRepository;
     }
 
@@ -163,7 +160,7 @@ public class HorseService {
 
             // Buổi tập tương lai thành "chưa phân công". Không có người phụ
             // trách thì không thể vướng BR-09, nên hàm này không ném lỗi.
-            trainingPlanService.reassignFutureWorkoutsToGroom(horseId, null);
+            workoutService.reassignFutureWorkoutsToGroom(horseId, null);
 
             stableStallRepository.findById(horse.getCurrentStallId()).ifPresent(oldStall -> {
                 oldStall.setStatus(StallStatus.AVAILABLE);
@@ -197,7 +194,7 @@ public class HorseService {
         // vẫn treo ở Groom của chuồng CŨ.
         // Gọi TRƯỚC khi ghi, để vướng BR-09 thì rollback toàn bộ.
         if (!stallId.equals(horse.getCurrentStallId())) {
-            trainingPlanService.reassignFutureWorkoutsToGroom(horseId, newStall.getGroomId());
+            workoutService.reassignFutureWorkoutsToGroom(horseId, newStall.getGroomId());
         }
 
         // Nếu ngựa trước đó đã ở chuồng khác thì giải phóng chuồng cũ về AVAILABLE
@@ -213,13 +210,5 @@ public class HorseService {
 
         horse.setCurrentStallId(stallId);
         return horseRepository.save(horse);
-    }
-
-    public List<HorseFitnessTrendItemResponse> getFitnessTrend(Long horseId, LocalDate from, LocalDate to) {
-        return trainingPlanService.getFitnessTrend(horseId, from, to);
-    }
-
-    public List<HorseAlertResponse> getHorseAlerts(Long horseId) {
-        return trainingPlanService.getHorseAlerts(horseId);
     }
 }

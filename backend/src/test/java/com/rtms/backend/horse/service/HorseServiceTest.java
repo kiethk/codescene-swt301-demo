@@ -3,7 +3,7 @@ import com.rtms.backend.horse.enums.HorseStatus;
 import com.rtms.backend.security.AuthenticatedUser;
 import com.rtms.backend.stable.entity.Area;
 import com.rtms.backend.stable.repository.AreaRepository;
-import com.rtms.backend.training.service.HorseTrainingPlanService;
+import com.rtms.backend.training.service.TrainingWorkoutService;
 
 
 import com.rtms.backend.horse.entity.Horse;
@@ -35,7 +35,7 @@ class HorseServiceTest {
     private StableStallRepository stableStallRepository;
 
     @Mock
-    private HorseTrainingPlanService trainingPlanService;
+    private TrainingWorkoutService workoutService;
 
     @Mock
     private com.rtms.backend.stable.repository.AreaRepository areaRepository;
@@ -44,7 +44,7 @@ class HorseServiceTest {
 
     @BeforeEach
     void setUp() {
-        horseService = new HorseService(horseRepository, stableStallRepository, trainingPlanService, areaRepository);
+        horseService = new HorseService(horseRepository, stableStallRepository, workoutService, areaRepository);
     }
 
     @Test
@@ -216,7 +216,7 @@ class HorseServiceTest {
 
         assertNull(result.getCurrentStallId());
         assertEquals(StallStatus.AVAILABLE, oldStall.getStatus());
-        verify(trainingPlanService).reassignFutureWorkoutsToGroom(eq(15L), isNull());
+        verify(workoutService).reassignFutureWorkoutsToGroom(eq(15L), isNull());
     }
 
     @Test
@@ -232,7 +232,7 @@ class HorseServiceTest {
 
         assertNull(result.getCurrentStallId());
         verify(horseRepository, never()).save(any());
-        verify(trainingPlanService, never()).reassignFutureWorkoutsToGroom(any(), any());
+        verify(workoutService, never()).reassignFutureWorkoutsToGroom(any(), any());
     }
 
     // =================================================================
@@ -267,7 +267,7 @@ class HorseServiceTest {
         assertTrue(ex.getMessage().contains("A1"));
         assertTrue(ex.getMessage().contains("BOOSTER WINNER"));
         verify(horseRepository, never()).save(any());
-        verify(trainingPlanService, never()).reassignFutureWorkoutsToGroom(any(), any());
+        verify(workoutService, never()).reassignFutureWorkoutsToGroom(any(), any());
     }
 
     @Test
@@ -292,7 +292,7 @@ class HorseServiceTest {
 
         assertEquals(6L, result.getCurrentStallId());
         // Cùng chuồng -> không cần đồng bộ Groom
-        verify(trainingPlanService, never()).reassignFutureWorkoutsToGroom(any(), any());
+        verify(workoutService, never()).reassignFutureWorkoutsToGroom(any(), any());
     }
 
     @Test
@@ -321,7 +321,7 @@ class HorseServiceTest {
 
         horseService.assignStall(9L, 22L);
 
-        verify(trainingPlanService).reassignFutureWorkoutsToGroom(9L, 7L);
+        verify(workoutService).reassignFutureWorkoutsToGroom(9L, 7L);
         assertEquals(StallStatus.AVAILABLE, oldStall.getStatus());
         assertEquals(StallStatus.OCCUPIED, newStall.getStatus());
     }
@@ -342,7 +342,7 @@ class HorseServiceTest {
         when(stableStallRepository.findById(6L)).thenReturn(Optional.of(newStall));
         when(horseRepository.findByCurrentStallId(6L)).thenReturn(Optional.empty());
         doThrow(new IllegalStateException("Groom này đang dắt 'BOOSTER WINNER'"))
-                .when(trainingPlanService).reassignFutureWorkoutsToGroom(9L, 4L);
+                .when(workoutService).reassignFutureWorkoutsToGroom(9L, 4L);
 
         assertThrows(IllegalStateException.class, () -> horseService.assignStall(9L, 6L));
 

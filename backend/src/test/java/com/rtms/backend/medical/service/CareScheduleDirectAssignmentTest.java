@@ -22,7 +22,7 @@ import com.rtms.backend.stable.enums.IncidentStatus;
 import com.rtms.backend.stable.repository.GroomIncidentReportRepository;
 import com.rtms.backend.stable.repository.StableStallRepository;
 import com.rtms.backend.training.enums.TrainingDecision;
-import com.rtms.backend.training.service.HorseTrainingPlanService;
+import com.rtms.backend.training.service.TrainingWorkoutService;
 import com.rtms.backend.training.service.TrainingDecisionService;
 
 
@@ -48,7 +48,7 @@ class CareScheduleDirectAssignmentTest {
     private VeterinarianProfileRepository profiles;
     private GroomIncidentReportRepository incidents;
     private ApplicationEventPublisher events;
-    private HorseTrainingPlanService trainingPlanService;
+    private TrainingWorkoutService workoutService;
     private CareScheduleService service;
 
     @BeforeEach
@@ -59,7 +59,7 @@ class CareScheduleDirectAssignmentTest {
         profiles = mock(VeterinarianProfileRepository.class);
         incidents = mock(GroomIncidentReportRepository.class);
         events = mock(ApplicationEventPublisher.class);
-        trainingPlanService = mock(HorseTrainingPlanService.class);
+        workoutService = mock(TrainingWorkoutService.class);
         service = new CareScheduleService(
                 schedules,
                 horses,
@@ -74,7 +74,7 @@ class CareScheduleDirectAssignmentTest {
                 events,
                 mock(EntityManager.class),
                 mock(NotificationService.class),
-                new TrainingDecisionService(horses, schedules, trainingPlanService));
+                new TrainingDecisionService(horses, schedules, workoutService));
         when(schedules.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(schedules.findScheduledForHorse(anyLong(), eq(CareScheduleStatus.SCHEDULED))).thenReturn(List.of());
         when(schedules.findScheduledForVet(anyLong(), eq(CareScheduleStatus.SCHEDULED))).thenReturn(List.of());
@@ -218,7 +218,7 @@ class CareScheduleDirectAssignmentTest {
 
         assertEquals(TrainingDecision.BLOCKED, horse.getTrainingDecision());
         // Chặn tập luôn kéo theo hủy buổi tập tương lai.
-        verify(trainingPlanService).cancelFutureTrainingForHorse(eq(99L), anyString());
+        verify(workoutService).cancelFutureTrainingForHorse(eq(99L), anyString());
         verify(horses).save(horse);
         verify(schedules, atLeastOnce()).save(argThat(schedule ->
                 schedule.getCareType() == CareType.URGENT

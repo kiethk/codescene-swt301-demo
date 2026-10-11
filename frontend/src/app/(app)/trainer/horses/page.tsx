@@ -1,17 +1,21 @@
-import { Metadata } from 'next';
+import type { Metadata } from 'next';
+import { Suspense } from 'react';
 import { RoleGuard } from '@/components/auth/RoleGuard';
 import { PageContainer } from '@/components/layout/PageContainer';
-import { TrainerHorseListView } from '@/features/training/components/TrainerHorseListView';
+import { LoadingScreen } from '@/components/ui';
+import { TrainerHorsesView } from '@/features/training/components/TrainerHorsesView';
 
 export const metadata: Metadata = {
-  title: 'Assigned horses | Trainer | RTMS',
+  title: 'Horses | Trainer | RTMS',
 };
 
 export default function TrainerHorsesPage() {
   return (
     <RoleGuard allowedRoles={['HEAD_TRAINER']}>
       <PageContainer>
-        <TrainerHorseListView />
+        <Suspense fallback={<LoadingScreen />}>
+          <TrainerHorsesView />
+        </Suspense>
       </PageContainer>
     </RoleGuard>
   );

@@ -1,14 +1,16 @@
 package com.rtms.backend.racing.dto;
 
+import com.rtms.backend.racing.enums.RaceRegistrationStatus;
+
 public class ReviewRaceRegistrationRequest {
-    private String status;
+    private RaceRegistrationStatus status;
     private String managerFeedback;
 
-    public String getStatus() {
+    public RaceRegistrationStatus getStatus() {
         return status;
     }
 
-    public void setStatus(String status) {
+    public void setStatus(RaceRegistrationStatus status) {
         this.status = status;
     }
 

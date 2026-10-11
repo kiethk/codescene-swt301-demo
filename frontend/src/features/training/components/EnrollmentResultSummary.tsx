@@ -1,25 +1,17 @@
 'use client';
 
 import { useMemo } from 'react';
-import Link from 'next/link';
-import { Button } from '@/components/ui/Button';
-import { Panel, SectionTitle } from '@/components/ui/Panel';
-import { Pill } from '@/components/ui/StatusBadge';
+import { Button, Icon, LinkButton, Notice, PageHeader, PageSection, Panel, Pill, ScreenLayout } from '@/components/ui';
 import type { Horse } from '@/features/stable/types';
+import { formatDate, formatTime } from '@/lib/display';
+import { PLAN_STATUS } from '../lib/status';
 import type { HorseTrainingPlanDetailResponse, PlanWorkoutItemResponse } from '../types';
+import { StatusPill } from './StatusPill';
 
 /**
- * Summary screen shown after a group enrollment.
- *
- * WHY IT EXISTS:
- * Enrolling 7 horses creates 7 plans. The frontend used to jump straight to the
- * first plan and throw away the other 6 results — even though the backend already
- * returned all 7 with the lotId of each session.
- *
- * More importantly: a group can be SPLIT across several lots for two reasons
- * (over capacity BR-10, or two horses sharing a Groom BR-09). That behaviour is
- * CORRECT, but unless it is spelled out the Trainer will think group matching is broken.
- * This screen is the clearest demonstration of how lots work.
+ * Summary shown after a group enrollment. Enrolling 7 horses creates 7 plans, and the group can be split over
+ * several lots (a lot is full, or two horses share a groom). That is correct behaviour, but unless it is spelled
+ * out the trainer will think group matching is broken, so this screen shows where the first session landed.
  */
 export function EnrollmentResultSummary({
   plans,
@@ -30,134 +22,86 @@ export function EnrollmentResultSummary({
   horses: Horse[];
   onDone: () => void;
 }) {
-  const horseNameById = useMemo(
-    () => new Map(horses.map((h) => [h.id, h.name] as const)),
-    [horses],
-  );
+  const horseNameById = useMemo(() => new Map(horses.map((h) => [h.id, h.name] as const)), [horses]);
 
   /**
-   * Groups the sessions of the FIRST training day by lot.
-   *
-   * Only the first day is used because it is enough to see whether the group was split — later
-   * days repeat the same structure (same group, same Groom, same capacity).
-   * Showing all 12 days would be a wall of numbers nobody reads.
+   * The FIRST session of each plan, grouped by lot. The first day is enough to see whether the group was split:
+   * later days repeat the same structure, and listing all of them would be a wall of numbers nobody reads.
    */
   const firstSessionByLot = useMemo(() => {
     const byLot = new Map<number, { item: PlanWorkoutItemResponse; horseId: number }[]>();
-
-    plans.forEach((p) => {
-      const first = p.workouts[0];
+    plans.forEach((plan) => {
+      const first = plan.workouts[0];
       if (!first) return;
-      const bucket = byLot.get(first.lotId) ?? [];
-      bucket.push({ item: first, horseId: p.plan.horseId });
-      byLot.set(first.lotId, bucket);
+      byLot.set(first.lotId, [...(byLot.get(first.lotId) ?? []), { item: first, horseId: plan.plan.horseId }]);
     });
-
-    return [...byLot.entries()].sort(
-      (a, b) => (a[1][0].item.startTime > b[1][0].item.startTime ? 1 : -1),
-    );
+    return [...byLot.entries()].sort((a, b) => a[1][0].item.startTime.localeCompare(b[1][0].item.startTime));
   }, [plans]);
 
-  const splitIntoMultipleLots = firstSessionByLot.length > 1;
+  const split = firstSessionByLot.length > 1;
   const firstDate = plans[0]?.workouts[0]?.lotDate;
+  const nameOf = (horseId: number) => horseNameById.get(horseId) ?? `Horse #${horseId}`;
 
   return (
-    <div className="space-y-4">
-      <Panel padded>
-        <div className="flex items-start gap-3">
-          <span className="text-2xl leading-none">✅</span>
-          <div>
-        <SectionTitle>Created {plans.length} training plans</SectionTitle>
-            <p className="mt-1 text-xs text-[var(--color-text-secondary)]">
-        Each horse has its own plan for recording metrics and feedback.
-            </p>
-          </div>
-        </div>
-      </Panel>
+    <ScreenLayout variant="form">
+      <PageHeader
+        title={`Created ${plans.length} training plans`}
+        description="Each horse has its own plan for recording metrics and feedback."
+        eyebrow="Enrollment complete"
+        actions={<Button variant="primary" onClick={onDone}>Back to courses</Button>}
+      />
 
-      <Panel padded>
-        <SectionTitle>
-        First workout{firstDate ? ` — ${firstDate}` : ''}
-        </SectionTitle>
-
-        <div className="mt-3 space-y-2">
+      <PageSection title={`First workout${firstDate ? ` — ${formatDate(firstDate)}` : ''}`}>
+        <Panel padded className="space-y-2">
           {firstSessionByLot.map(([lotId, entries]) => {
             const sample = entries[0].item;
             return (
-              <div
-                key={lotId}
-                className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-3"
-              >
+              <div key={lotId} className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-3">
                 <div className="flex flex-wrap items-center gap-2 text-xs">
                   <Pill tone="info" size="sm">Lot #{lotId}</Pill>
-                  <strong>{sample.startTime} – {sample.endTime}</strong>
-                  <span className="text-[var(--color-text-secondary)]">
-                    {sample.subjectName}
-                  </span>
-                  <Pill
-                    tone={
-                      sample.lotOccupancy && sample.lotOccupancy >= 6 ? 'warning' : 'success'
-                    }
-                    size="sm"
-                  >
-          {sample.lotOccupancy ?? entries.length} horses
-                  </Pill>
+                  <strong>{formatTime(sample.startTime)} – {formatTime(sample.endTime)}</strong>
+                  <span className="text-[var(--color-text-secondary)]">{sample.subjectName}</span>
+                  <Pill tone="neutral" size="sm" icon="horse">{sample.lotOccupancy ?? entries.length} horses</Pill>
                 </div>
-                <div className="mt-1.5 text-xs text-[var(--color-text-secondary)]">
-                  {entries
-                    .map((e) => horseNameById.get(e.horseId) ?? `#${e.horseId}`)
-                    .join(' · ')}
-                </div>
+                <p className="mt-1.5 text-xs text-[var(--color-text-secondary)]">
+                  {entries.map((entry) => nameOf(entry.horseId)).join(' · ')}
+                </p>
               </div>
             );
           })}
-        </div>
+          {split && (
+            <Notice tone="info">
+              The group was split across {firstSessionByLot.length} workout sessions because a lot holds a limited number of
+              horses and each groom can lead one horse per session.
+            </Notice>
+          )}
+        </Panel>
+      </PageSection>
 
-        {splitIntoMultipleLots && (
-          <div className="mt-3 rounded-[var(--radius-md)] bg-[var(--color-info-soft)] p-3 text-xs text-[var(--color-info)]">
-        The group was split across {firstSessionByLot.length} workout sessions because each lot holds up to six horses and each groom can lead one horse per session.
-          </div>
-        )}
-      </Panel>
-
-      <Panel padded>
-      <SectionTitle>Newly created plans</SectionTitle>
-        <ul className="mt-2 space-y-1.5">
-          {plans.map((p) => (
-            <li
-              key={p.plan.id}
-              className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-md)] border border-[var(--color-border)] p-2.5 text-xs"
-            >
-              <div>
-                <strong className="text-[var(--color-text-primary)]">
-          {horseNameById.get(p.plan.horseId) ?? `Horse #${p.plan.horseId}`}
-                </strong>
-                <span className="ml-2 text-[var(--color-text-muted)]">
-          {p.workouts.length} sessions · {p.plan.startDate} → {p.plan.endDate}
-                </span>
-                <Pill
-                  tone={p.plan.status === 'ACTIVE' ? 'success' : 'info'}
-                  size="sm"
-                >
-                  {p.plan.status}
-                </Pill>
-              </div>
-              <Link
-                href={`/trainer/plans/${p.plan.id}`}
-                className="text-[var(--color-primary)] underline"
+      <PageSection title="Newly created plans">
+        <Panel padded>
+          <ul className="space-y-1.5">
+            {plans.map((plan) => (
+              <li
+                key={plan.plan.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-md)] border border-[var(--color-border)] p-2.5 text-xs"
               >
-          View details
-              </Link>
-            </li>
-          ))}
-        </ul>
-
-        <div className="mt-4 flex gap-2">
-          <Button variant="primary" onClick={onDone}>
-          Back to courses
-          </Button>
-        </div>
-      </Panel>
-    </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <strong className="text-[var(--color-text-primary)]">{nameOf(plan.plan.horseId)}</strong>
+                  <span className="text-[var(--color-text-muted)]">
+                    {plan.workouts.length} sessions · {formatDate(plan.plan.startDate)} → {formatDate(plan.plan.endDate)}
+                  </span>
+                  <StatusPill status={PLAN_STATUS[plan.plan.status]} />
+                </div>
+                <LinkButton href={`/trainer/plans/${plan.plan.id}`} size="sm" variant="link">
+                  View details
+                  <Icon name="chevron-right" size={12} />
+                </LinkButton>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      </PageSection>
+    </ScreenLayout>
   );
 }

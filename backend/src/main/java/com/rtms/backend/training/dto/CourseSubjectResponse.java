@@ -6,7 +6,7 @@ import com.rtms.backend.training.enums.SurfaceType;
 import java.math.BigDecimal;
 
 public class CourseSubjectResponse {
-    private Long id; // ID bản ghi liên kết course_subjects
+    private Long id; // ID bản ghi liên kết course_subjects (ID of the course_subjects link row)
     private Long subjectId;
     private String subjectName;
     private String description;
@@ -21,10 +21,13 @@ public class CourseSubjectResponse {
      *
      * Không có trường này thì màn hình chọn khoá không cho Trainer thấy khoá
      * sẽ ngốn bao nhiêu khung giờ vàng — đúng thứ họ cần để quyết định.
+     * (Subject duration in minutes: the number that DECIDES THE LOT LENGTH when the system schedules
+     *  (lot.endTime = lot.startTime + durationMinutes). Without it the course picker cannot show the trainer how much
+     *  golden window a course will consume, which is exactly what they need to decide.)
      */
     private Integer durationMinutes;
 
-    /** Giữ chữ ký 8 tham số cho các lời gọi đã có. */
+    /** Giữ chữ ký 8 tham số cho các lời gọi đã có. (Keeps the 8-parameter signature for existing callers.) */
     public CourseSubjectResponse(Long id, Long subjectId, String subjectName, String description,
                                  SurfaceType surfaceType, BigDecimal targetDistanceMeters,
                                  IntensityLevel intensityLevel, Integer orderIndex) {

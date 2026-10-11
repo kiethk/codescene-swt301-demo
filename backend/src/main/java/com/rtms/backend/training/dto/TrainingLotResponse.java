@@ -1,7 +1,5 @@
 package com.rtms.backend.training.dto;
 
-import com.rtms.backend.training.entity.TrainingLot;
-
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
@@ -21,19 +19,19 @@ public class TrainingLotResponse {
     private Integer remainingSlots;
     private List<String> horseNames;
 
-    public TrainingLotResponse(TrainingLot lot, String subjectName, Integer durationMinutes,
-                               int occupied, List<String> horseNames) {
-        this.lotId = lot.getId();
-        this.lotDate = lot.getLotDate();
-        this.startTime = lot.getStartTime();
-        this.endTime = lot.getEndTime();
-        this.subjectId = lot.getSubjectId();
-        this.subjectName = subjectName;
-        this.durationMinutes = durationMinutes;
-        this.status = lot.getStatus().name();
-        this.maxCapacity = lot.getMaxCapacity();
+    public TrainingLotResponse(TrainingLotRow row, List<String> horseNames) {
+        int occupied = row.occupied().intValue();
+        this.lotId = row.lotId();
+        this.lotDate = row.lotDate();
+        this.startTime = row.startTime();
+        this.endTime = row.endTime();
+        this.subjectId = row.subjectId();
+        this.subjectName = row.subjectName();
+        this.durationMinutes = row.durationMinutes();
+        this.status = row.status().name();
+        this.maxCapacity = row.maxCapacity();
         this.occupied = occupied;
-        this.remainingSlots = lot.getMaxCapacity() - occupied;
+        this.remainingSlots = row.maxCapacity() - occupied;
         this.horseNames = horseNames;
     }
 

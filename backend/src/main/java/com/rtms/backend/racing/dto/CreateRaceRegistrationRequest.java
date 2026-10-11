@@ -11,43 +11,43 @@ import java.time.LocalTime;
 
 public class CreateRaceRegistrationRequest {
 
-    @NotNull(message = "Chiến mã không được để trống")
+    @NotNull(message = "Horse must not be empty")
     private Long horseId;
 
-    @NotBlank(message = "Tên cuộc đua không được để trống")
-    @Size(max = 255, message = "Tên cuộc đua tối đa 255 ký tự")
+    @NotBlank(message = "Race name must not be empty")
+    @Size(max = 255, message = "Race name must be at most 255 characters")
     private String raceName;
 
-    @NotBlank(message = "Hạng mục cuộc đua không được để trống")
-    @Size(max = 255, message = "Hạng mục cuộc đua tối đa 255 ký tự")
+    @NotBlank(message = "Race category must not be empty")
+    @Size(max = 255, message = "Race category must be at most 255 characters")
     private String raceCategory;
 
-    @NotBlank(message = "Địa điểm không được để trống")
-    @Size(max = 255, message = "Địa điểm tối đa 255 ký tự")
+    @NotBlank(message = "Venue must not be empty")
+    @Size(max = 255, message = "Venue must be at most 255 characters")
     private String location;
 
-    @NotNull(message = "Ngày tổ chức không được để trống")
+    @NotNull(message = "Race date must not be empty")
     private LocalDate eventDate;
 
     private LocalTime eventTime;
 
-    @Size(max = 255, message = "Đơn vị tổ chức tối đa 255 ký tự")
+    @Size(max = 255, message = "Organizer must be at most 255 characters")
     private String organizer;
 
-    @Size(max = 1000, message = "Link nguồn tối đa 1000 ký tự")
+    @Size(max = 1000, message = "Source link must be at most 1000 characters")
     private String sourceUrl;
 
     private LocalDate nominationDeadline;
 
-    @Positive(message = "Cự ly phải là số dương")
+    @Positive(message = "Distance must be a positive number")
     private BigDecimal distanceMeters;
 
-    @Size(max = 50, message = "Mặt sân tối đa 50 ký tự")
+    @Size(max = 50, message = "Surface must be at most 50 characters")
     private String trackType;
 
     private String prizeDetails;
 
-    @NotBlank(message = "Lý do đề cử không được để trống")
+    @NotBlank(message = "Nomination reason must not be empty")
     private String selectionReason;
 
     private String trainerNotes;

@@ -17,6 +17,11 @@ export function formatDateTime(value: string | Date | null | undefined): string 
   return formatDate(value, { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
+/** Trims a backend time such as "06:30:00" to "06:30". */
+export function formatTime(value: string | null | undefined): string {
+  return value ? value.slice(0, 5) : '—';
+}
+
 /** Turns a backend enum such as `HEAD_TRAINER` into "Head trainer". */
 export function formatEnumLabel(value: string | null | undefined): string {
   if (!value) return '—';

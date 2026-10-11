@@ -1,11 +1,10 @@
 package com.rtms.backend.training.service;
-import com.rtms.backend.training.enums.IntensityLevel;
-import com.rtms.backend.training.enums.SurfaceType;
-
 
 import com.rtms.backend.training.dto.CreateSubjectRequest;
 import com.rtms.backend.training.entity.Subject;
-import com.rtms.backend.training.repository.SubjectCategoryRepository;
+import com.rtms.backend.training.enums.IntensityLevel;
+import com.rtms.backend.training.enums.SubjectCategory;
+import com.rtms.backend.training.enums.SurfaceType;
 import com.rtms.backend.training.repository.SubjectRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -14,6 +13,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
@@ -27,26 +27,35 @@ class SubjectServiceTest {
     @Mock
     private SubjectRepository subjectRepository;
 
-    @Mock
-    private SubjectCategoryRepository categoryRepository;
-
     private SubjectService subjectService;
 
     @BeforeEach
     void setUp() {
-        subjectService = new SubjectService(subjectRepository, categoryRepository);
+        subjectService = new SubjectService(subjectRepository);
+    }
+
+    private CreateSubjectRequest validRequest() {
+        CreateSubjectRequest req = new CreateSubjectRequest();
+        req.setCategory(SubjectCategory.ENDURANCE);
+        req.setName("45-minute heart-rate run");
+        req.setDescription("Keep a moderate pace");
+        req.setSurfaceType(SurfaceType.TURF);
+        req.setTargetDistanceMeters(BigDecimal.valueOf(1600));
+        req.setIntensityLevel(IntensityLevel.MEDIUM);
+        req.setDurationMinutes(45);
+        return req;
     }
 
     @Test
-    @DisplayName("1. Lấy danh sách bài tập - không lọc theo danh mục")
+    @DisplayName("1. Lists subjects without a category filter")
     void testGetAllSubjects_WithoutCategory_ReturnsAll() {
         Subject s1 = new Subject();
         s1.setId(1L);
-        s1.setName("Khởi động");
+        s1.setName("Warm-up");
 
         Subject s2 = new Subject();
         s2.setId(2L);
-        s2.setName("Chạy bền");
+        s2.setName("Steady run");
 
         when(subjectRepository.findAll()).thenReturn(List.of(s1, s2));
 
@@ -54,32 +63,32 @@ class SubjectServiceTest {
 
         assertEquals(2, result.size());
         verify(subjectRepository).findAll();
-        verify(subjectRepository, never()).findByCategoryId(anyLong());
+        verify(subjectRepository, never()).findByCategory(any());
     }
 
     @Test
-    @DisplayName("2. Lấy danh sách bài tập - lọc theo danh mục")
+    @DisplayName("2. Lists subjects filtered by category")
     void testGetAllSubjects_WithCategory_ReturnsFiltered() {
         Subject s = new Subject();
         s.setId(1L);
-        s.setCategoryId(10L);
-        s.setName("Bài tập thể lực");
+        s.setCategory(SubjectCategory.SPEED);
+        s.setName("Fitness drill");
 
-        when(subjectRepository.findByCategoryId(10L)).thenReturn(List.of(s));
+        when(subjectRepository.findByCategory(SubjectCategory.SPEED)).thenReturn(List.of(s));
 
-        List<Subject> result = subjectService.getAllSubjects(10L);
+        List<Subject> result = subjectService.getAllSubjects(SubjectCategory.SPEED);
 
         assertEquals(1, result.size());
-        assertEquals("Bài tập thể lực", result.get(0).getName());
-        verify(subjectRepository).findByCategoryId(10L);
+        assertEquals("Fitness drill", result.get(0).getName());
+        verify(subjectRepository).findByCategory(SubjectCategory.SPEED);
     }
 
     @Test
-    @DisplayName("3. Lấy chi tiết bài tập theo ID thành công")
+    @DisplayName("3. Gets a subject by id")
     void testGetSubjectById_Success() {
         Subject s = new Subject();
         s.setId(5L);
-        s.setName("Bứt tốc cự ly ngắn");
+        s.setName("Short-distance burst");
 
         when(subjectRepository.findById(5L)).thenReturn(Optional.of(s));
 
@@ -87,11 +96,11 @@ class SubjectServiceTest {
 
         assertNotNull(result);
         assertEquals(5L, result.getId());
-        assertEquals("Bứt tốc cự ly ngắn", result.getName());
+        assertEquals("Short-distance burst", result.getName());
     }
 
     @Test
-    @DisplayName("4. Lấy chi tiết bài tập thất bại khi không tìm thấy ID")
+    @DisplayName("4. Fails when the subject id is unknown")
     void testGetSubjectById_NotFound_ThrowsException() {
         when(subjectRepository.findById(999L)).thenReturn(Optional.empty());
 
@@ -99,74 +108,65 @@ class SubjectServiceTest {
     }
 
     @Test
-    @DisplayName("5. Tạo bài tập mới thành công với thời lượng hợp lệ (15 - 240 phút)")
+    @DisplayName("5. Creates a subject with a valid duration (15 - 240 minutes)")
     void testCreateSubject_Success() {
-        CreateSubjectRequest req = new CreateSubjectRequest();
-        req.setCategoryId(2L);
-        req.setName("Luyện nhịp tim 45 phút");
-        req.setDescription("Duy trì tốc độ vừa phải");
-        req.setSurfaceType(com.rtms.backend.training.enums.SurfaceType.TURF);
-        req.setTargetDistanceMeters(java.math.BigDecimal.valueOf(1600));
-        req.setIntensityLevel(com.rtms.backend.training.enums.IntensityLevel.MEDIUM);
-        req.setDurationMinutes(45);
-
-        when(categoryRepository.existsById(2L)).thenReturn(true);
         when(subjectRepository.save(any(Subject.class))).thenAnswer(inv -> {
             Subject s = inv.getArgument(0);
             s.setId(88L);
             return s;
         });
 
-        Subject created = subjectService.createSubject(req);
+        Subject created = subjectService.createSubject(validRequest());
 
         assertNotNull(created);
         assertEquals(88L, created.getId());
-        assertEquals("Luyện nhịp tim 45 phút", created.getName());
+        assertEquals(SubjectCategory.ENDURANCE, created.getCategory());
+        assertEquals("45-minute heart-rate run", created.getName());
         assertEquals(45, created.getDurationMinutes());
         verify(subjectRepository).save(any(Subject.class));
     }
 
     @Test
-    @DisplayName("6. Chặn tạo bài tập nếu danh mục bài tập không tồn tại")
-    void testCreateSubject_CategoryNotFound_ThrowsIllegalArgument() {
-        CreateSubjectRequest req = new CreateSubjectRequest();
-        req.setCategoryId(999L);
-        req.setName("Bài tập lỗi");
+    @DisplayName("5b. A missing duration defaults to 60 minutes")
+    void testCreateSubject_DefaultDuration() {
+        CreateSubjectRequest req = validRequest();
+        req.setDurationMinutes(null);
+        when(subjectRepository.save(any(Subject.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        when(categoryRepository.existsById(999L)).thenReturn(false);
-
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> subjectService.createSubject(req));
-        assertTrue(ex.getMessage().contains("Category not found"));
+        assertEquals(60, subjectService.createSubject(req).getDurationMinutes());
     }
 
     @Test
-    @DisplayName("7. Chặn tạo bài tập nếu thời lượng quá ngắn (< 15 phút)")
+    @DisplayName("6. A subject without a category is rejected")
+    void testCreateSubject_MissingCategory_ThrowsIllegalArgument() {
+        CreateSubjectRequest req = validRequest();
+        req.setCategory(null);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> subjectService.createSubject(req));
+        assertTrue(ex.getMessage().contains("Category is required"));
+        verify(subjectRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("7. A duration that is too short (< 15 minutes) is rejected")
     void testCreateSubject_DurationTooShort_ThrowsIllegalArgument() {
-        CreateSubjectRequest req = new CreateSubjectRequest();
-        req.setCategoryId(1L);
-        req.setName("Tập siêu tốc");
+        CreateSubjectRequest req = validRequest();
         req.setDurationMinutes(10); // < 15
 
-        when(categoryRepository.existsById(1L)).thenReturn(true);
-
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> subjectService.createSubject(req));
-        assertTrue(ex.getMessage().contains("từ 15 đến 240 phút"));
+        assertTrue(ex.getMessage().contains("between 15 and 240 minutes"));
     }
 
     @Test
-    @DisplayName("8. Chặn tạo bài tập nếu thời lượng quá dài (> 240 phút)")
+    @DisplayName("8. A duration that is too long (> 240 minutes) is rejected")
     void testCreateSubject_DurationTooLong_ThrowsIllegalArgument() {
-        CreateSubjectRequest req = new CreateSubjectRequest();
-        req.setCategoryId(1L);
-        req.setName("Tập marathon");
+        CreateSubjectRequest req = validRequest();
         req.setDurationMinutes(300); // > 240
-
-        when(categoryRepository.existsById(1L)).thenReturn(true);
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> subjectService.createSubject(req));
-        assertTrue(ex.getMessage().contains("từ 15 đến 240 phút"));
+        assertTrue(ex.getMessage().contains("between 15 and 240 minutes"));
     }
 }

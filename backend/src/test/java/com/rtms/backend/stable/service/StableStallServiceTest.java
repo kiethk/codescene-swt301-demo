@@ -1,5 +1,5 @@
 package com.rtms.backend.stable.service;
-import com.rtms.backend.training.service.HorseTrainingPlanService;
+import com.rtms.backend.training.service.TrainingWorkoutService;
 
 
 import com.rtms.backend.config.FarmSchedulePolicy;
@@ -38,14 +38,14 @@ class StableStallServiceTest {
     private HorseRepository horseRepository;
 
     @Mock
-    private HorseTrainingPlanService planService;
+    private TrainingWorkoutService workoutService;
 
     private StableStallService stableStallService;
 
     @BeforeEach
     void setUp() {
         stableStallService = new StableStallService(
-                stableStallRepository, userRepository, horseRepository, planService);
+                stableStallRepository, userRepository, horseRepository, workoutService);
     }
 
     /** Dựng một Groom hợp lệ để dùng lại giữa các test. */
@@ -177,7 +177,7 @@ class StableStallServiceTest {
         stableStallService.assignGroom(10L, 5L);
 
         // Buổi tập phải được chuyển sang ĐÚNG Groom mới, không phải Groom cũ
-        verify(planService).reassignFutureWorkoutsToGroom(77L, 5L);
+        verify(workoutService).reassignFutureWorkoutsToGroom(77L, 5L);
     }
 
     @Test
@@ -197,7 +197,7 @@ class StableStallServiceTest {
 
         stableStallService.assignGroom(10L, null);
 
-        verify(planService).reassignFutureWorkoutsToGroom(eq(77L), isNull());
+        verify(workoutService).reassignFutureWorkoutsToGroom(eq(77L), isNull());
     }
 
     @Test
@@ -214,7 +214,7 @@ class StableStallServiceTest {
 
         stableStallService.assignGroom(10L, 5L);
 
-        verify(planService, never()).reassignFutureWorkoutsToGroom(any(), any());
+        verify(workoutService, never()).reassignFutureWorkoutsToGroom(any(), any());
     }
 
     @Test
@@ -233,7 +233,7 @@ class StableStallServiceTest {
         when(stableStallRepository.countByGroomId(5L)).thenReturn(1L);
         when(horseRepository.findByCurrentStallId(10L)).thenReturn(Optional.of(horse));
         doThrow(new IllegalStateException("Groom này đang dắt 'Red Fox'"))
-                .when(planService).reassignFutureWorkoutsToGroom(77L, 5L);
+                .when(workoutService).reassignFutureWorkoutsToGroom(77L, 5L);
 
         IllegalStateException ex = assertThrows(IllegalStateException.class,
                 () -> stableStallService.assignGroom(10L, 5L));

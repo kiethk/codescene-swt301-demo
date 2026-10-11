@@ -21,6 +21,7 @@ import {
   Notice,
   Panel,
   Pill,
+  ProgressBar,
   SearchInput,
   SectionTitle,
   SegmentedControl,
@@ -172,6 +173,29 @@ export default function DesignTestPage() {
           <MetricCard label="Avg fitness" value="7.8" unit="/10" tone="success" icon="activity" />
           <MetricCard label="Open incidents" value={3} tone="danger" icon="alert-triangle" hint="2 need a vet" />
         </div>
+      </Section>
+
+      <Section title="Progress bar">
+        <Panel padded className="space-y-4">
+          <div className="space-y-1.5">
+            <FieldLabel>Single value</FieldLabel>
+            <ProgressBar label="Course progress" value={7} max={12} />
+            <ProgressBar label="Course progress, small" value={9} max={12} size="sm" tone="success" />
+          </div>
+          <div className="space-y-1.5">
+            <FieldLabel>Stacked distribution</FieldLabel>
+            <ProgressBar
+              label="Team performance distribution"
+              max={10}
+              segments={[
+                { value: 4, tone: 'success', label: 'Excellent: 4' },
+                { value: 3, tone: 'info', label: 'On target: 3' },
+                { value: 2, tone: 'warning', label: 'Needs improvement: 2' },
+                { value: 1, tone: 'neutral', label: 'No data: 1' },
+              ]}
+            />
+          </div>
+        </Panel>
       </Section>
 
       <Section title="Badges, avatars, tooltips">
