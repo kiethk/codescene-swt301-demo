@@ -5,6 +5,7 @@ import com.rtms.backend.training.dto.GroomWorkoutRow;
 import com.rtms.backend.training.dto.HorseFitnessTrendItemResponse;
 import com.rtms.backend.training.dto.PlanWorkoutItemResponse;
 import com.rtms.backend.training.dto.RecentWorkoutRow;
+import com.rtms.backend.training.dto.SpecialtyWorkoutRow;
 import com.rtms.backend.training.entity.TrainingWorkout;
 import com.rtms.backend.training.enums.WorkoutStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -167,6 +168,30 @@ public interface TrainingWorkoutRepository extends JpaRepository<TrainingWorkout
            """)
     List<RecentWorkoutRow> findRecentCompletedWorkouts(@Param("horseIds") Collection<Long> horseIds,
                                                        @Param("since") LocalDate since);
+
+    /**
+     * Các buổi tập dùng để suy ra sở trường của NHIỀU ngựa: đã hoàn thành, có điểm phong độ, có cự ly (thực tế, hoặc
+     * cự ly mục tiêu của bài tập), không thuộc nhóm hồi phục, từ một mốc ngày. Mặt sân lấy từ bài tập của lot.
+     * (The workouts used to infer the specialty of MANY horses: completed, with a rating, with a distance (actual,
+     * or the subject target distance), not in the recovery category, since a date. The surface comes from the
+     * subject of the lot.)
+     */
+    @Query("""
+           SELECT new com.rtms.backend.training.dto.SpecialtyWorkoutRow(
+                      w.horseId, COALESCE(w.actualDistanceMeters, s.targetDistanceMeters),
+                      s.surfaceType, w.performanceRating, w.topSpeedKmh)
+           FROM TrainingWorkout w
+           JOIN TrainingLot l ON w.lotId = l.id
+           JOIN Subject s ON l.subjectId = s.id
+           WHERE w.horseId IN :horseIds
+             AND w.status = com.rtms.backend.training.enums.WorkoutStatus.COMPLETED
+             AND w.performanceRating IS NOT NULL
+             AND COALESCE(w.actualDistanceMeters, s.targetDistanceMeters) IS NOT NULL
+             AND s.category <> com.rtms.backend.training.enums.SubjectCategory.RECOVERY
+             AND l.lotDate >= :since
+           """)
+    List<SpecialtyWorkoutRow> findSpecialtyWorkouts(@Param("horseIds") Collection<Long> horseIds,
+                                                    @Param("since") LocalDate since);
 
     /**
      * Owner có ít nhất một con ngựa còn hiệu lực trong lot này không? Dùng để kiểm quyền xem một lot.

@@ -1,20 +1,18 @@
 package com.rtms.backend.training.service;
 
-import com.rtms.backend.horse.entity.Horse;
-import com.rtms.backend.horse.repository.HorseRepository;
 import com.rtms.backend.notification.dto.HorseAlertResponse;
 import com.rtms.backend.security.AuthenticatedUser;
 import com.rtms.backend.stable.repository.GroomIncidentReportRepository;
 import com.rtms.backend.training.dto.DashboardHorseRow;
 import com.rtms.backend.training.dto.DashboardPlanRow;
 import com.rtms.backend.training.dto.HorseFitnessTrendItemResponse;
+import com.rtms.backend.training.dto.HorseSpecialtyResponse;
 import com.rtms.backend.training.dto.IncidentCountRow;
 import com.rtms.backend.training.dto.RecentWorkoutRow;
 import com.rtms.backend.training.dto.TrainerDashboardHorseResponse;
 import com.rtms.backend.training.enums.TrainingPlanStatus;
 import com.rtms.backend.training.repository.HorseTrainingPlanRepository;
 import com.rtms.backend.training.repository.TrainingWorkoutRepository;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -40,24 +38,27 @@ public class HorsePerformanceService {
 
     private static final int RECENT_WORKOUT_DAYS = 30;
     private static final int INCIDENT_WINDOW_DAYS = 14;
-    private static final int MAX_HEART_RATE_LIMIT = 220;
-    private static final int RECOVERY_HEART_RATE_LIMIT = 100;
+    public static final int MAX_HEART_RATE_LIMIT = 220;
+    public static final int RECOVERY_HEART_RATE_LIMIT = 100;
     private static final int REPEATED_INCIDENT_COUNT = 2;
     private static final LocalTime DEFAULT_END_TIME = LocalTime.of(10, 0);
 
     private final TrainingWorkoutRepository workoutRepository;
     private final HorseTrainingPlanRepository planRepository;
     private final GroomIncidentReportRepository incidentReportRepository;
-    private final HorseRepository horseRepository;
+    private final HorseViewAccessService accessService;
+    private final HorseSpecialtyService specialtyService;
 
     public HorsePerformanceService(TrainingWorkoutRepository workoutRepository,
                                    HorseTrainingPlanRepository planRepository,
                                    GroomIncidentReportRepository incidentReportRepository,
-                                   HorseRepository horseRepository) {
+                                   HorseViewAccessService accessService,
+                                   HorseSpecialtyService specialtyService) {
         this.workoutRepository = workoutRepository;
         this.planRepository = planRepository;
         this.incidentReportRepository = incidentReportRepository;
-        this.horseRepository = horseRepository;
+        this.accessService = accessService;
+        this.specialtyService = specialtyService;
     }
 
     // =================================================================
@@ -71,7 +72,7 @@ public class HorsePerformanceService {
     @Transactional(readOnly = true)
     public List<HorseFitnessTrendItemResponse> getFitnessTrend(Long horseId, LocalDate fromDate,
                                                                LocalDate toDate, AuthenticatedUser currentUser) {
-        assertCanViewHorse(horseId, currentUser);
+        accessService.assertCanViewHorse(horseId, currentUser);
 
         // Bỏ trống thì dùng mốc bao trùm, để câu truy vấn luôn có BETWEEN cụ thể và khỏi phải viết
         // "(:from IS NULL OR ...)" vốn hay lỗi ép kiểu tham số null trên PostgreSQL.
@@ -92,7 +93,7 @@ public class HorsePerformanceService {
      */
     @Transactional(readOnly = true)
     public List<HorseAlertResponse> getHorseAlerts(Long horseId, AuthenticatedUser currentUser) {
-        assertCanViewHorse(horseId, currentUser);
+        accessService.assertCanViewHorse(horseId, currentUser);
 
         List<RecentWorkoutRow> recent = workoutRepository.findRecentCompletedWorkouts(
                 List.of(horseId), LocalDate.now().minusDays(RECENT_WORKOUT_DAYS));
@@ -212,10 +213,10 @@ public class HorsePerformanceService {
      * Bảng tiến độ và thể lực toàn khu của Trainer (FE-7.1).
      * (Progress and fitness board for the whole area of a trainer.)
      *
-     * Số truy vấn là HẰNG SỐ (5), không phụ thuộc số ngựa: ngựa trong khu, kế hoạch, buổi tập 30 ngày,
-     * số sự cố, đều lấy một lượt rồi ghép theo horseId.
-     * (The number of queries is CONSTANT (5), independent of the horse count: area horses, plans, 30-day
-     * workouts and incident counts are each fetched once and joined by horseId.)
+     * Số truy vấn là HẰNG SỐ (6), không phụ thuộc số ngựa: ngựa trong khu, kế hoạch, buổi tập 30 ngày,
+     * số sự cố, buổi tập tính sở trường, đều lấy một lượt rồi ghép theo horseId.
+     * (The number of queries is CONSTANT (6), independent of the horse count: area horses, plans, 30-day
+     * workouts, incident counts and the specialty workouts are each fetched once and joined by horseId.)
      */
     @Transactional(readOnly = true)
     public List<TrainerDashboardHorseResponse> getTrainerDashboard(AuthenticatedUser currentUser) {
@@ -235,20 +236,23 @@ public class HorsePerformanceService {
         Map<Long, Long> incidentsByHorse = incidentReportRepository
                 .countIncidentsByHorseIds(horseIds, incidentWindowStart()).stream()
                 .collect(Collectors.toMap(IncidentCountRow::horseId, IncidentCountRow::count));
+        Map<Long, HorseSpecialtyResponse> specialtyByHorse = specialtyService.getSpecialties(horseIds);
 
         return horses.stream()
                 .map(horse -> buildDashboardRow(
                         horse,
                         plansByHorse.getOrDefault(horse.horseId(), List.of()),
                         recentByHorse.getOrDefault(horse.horseId(), List.of()),
-                        incidentsByHorse.getOrDefault(horse.horseId(), 0L)))
+                        incidentsByHorse.getOrDefault(horse.horseId(), 0L),
+                        specialtyByHorse.get(horse.horseId())))
                 .toList();
     }
 
     private TrainerDashboardHorseResponse buildDashboardRow(DashboardHorseRow horse,
                                                             List<DashboardPlanRow> plans,
                                                             List<RecentWorkoutRow> recent,
-                                                            long incidentCount) {
+                                                            long incidentCount,
+                                                            HorseSpecialtyResponse specialty) {
         TrainerDashboardHorseResponse response = new TrainerDashboardHorseResponse();
         response.setHorseId(horse.horseId());
         response.setHorseName(horse.horseName());
@@ -261,6 +265,7 @@ public class HorsePerformanceService {
         List<HorseAlertResponse> alerts = evaluateAlerts(recent, incidentCount);
         response.setAlertsCount(alerts.size());
         response.setAlertTitles(alerts.stream().map(HorseAlertResponse::getTitle).toList());
+        response.setSpecialty(specialty);
         return response;
     }
 
@@ -318,27 +323,5 @@ public class HorsePerformanceService {
 
     private double round1(double value) {
         return Math.round(value * 10.0) / 10.0;
-    }
-
-    // =================================================================
-    // PHÂN QUYỀN (Authorization)
-    // =================================================================
-
-    /**
-     * Owner chỉ xem ngựa của mình; Trainer chỉ xem ngựa trong khu mình phụ trách; vai khác theo quyền HORSE_VIEW.
-     * (An owner sees only their own horses; a trainer only horses in their areas; other roles follow HORSE_VIEW.)
-     */
-    private void assertCanViewHorse(Long horseId, AuthenticatedUser currentUser) {
-        Horse horse = horseRepository.findById(horseId)
-                .orElseThrow(() -> new RuntimeException("Horse not found with id: " + horseId));
-
-        if ("HORSE_OWNER".equals(currentUser.getRole())
-                && !currentUser.getUserId().equals(horse.getOwnerId())) {
-            throw new AccessDeniedException("You can only view horses you own");
-        }
-        if ("HEAD_TRAINER".equals(currentUser.getRole())
-                && !planRepository.existsHorseInTrainerArea(horseId, currentUser.getUserId())) {
-            throw new AccessDeniedException("You can only view horses in the areas you manage");
-        }
     }
 }

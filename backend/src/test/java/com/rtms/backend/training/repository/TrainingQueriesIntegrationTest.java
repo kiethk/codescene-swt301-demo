@@ -25,6 +25,7 @@ import com.rtms.backend.training.dto.PlanNamesRow;
 import com.rtms.backend.training.dto.PlanSummaryResponse;
 import com.rtms.backend.training.dto.PlanWorkoutItemResponse;
 import com.rtms.backend.training.dto.RecentWorkoutRow;
+import com.rtms.backend.training.dto.SpecialtyWorkoutRow;
 import com.rtms.backend.training.dto.TrainingLotRow;
 import com.rtms.backend.training.entity.Course;
 import com.rtms.backend.training.entity.CourseSubject;
@@ -440,5 +441,89 @@ class TrainingQueriesIntegrationTest {
         assertEquals(1, counts.size(), "Horse 2 has no incident and does not appear");
         assertEquals(horse1.getId(), counts.get(0).horseId());
         assertEquals(2L, counts.get(0).count());
+    }
+
+    // =================================================================
+    // Specialty
+    // =================================================================
+
+    private TrainingWorkout completedWorkout(TrainingLot lot, Horse horse, Integer rating, BigDecimal actualDistance) {
+        TrainingWorkout workout = workout(lot, horse, WorkoutStatus.COMPLETED);
+        workout.setPerformanceRating(rating);
+        workout.setActualDistanceMeters(actualDistance);
+        workout.setTopSpeedKmh(BigDecimal.valueOf(60));
+        return workouts.saveAndFlush(workout);
+    }
+
+    private Subject subjectOf(SubjectCategory category, SurfaceType surface, BigDecimal targetDistance) {
+        Subject other = new Subject();
+        other.setCategory(category);
+        other.setName("IT " + category + " " + System.nanoTime());
+        other.setSurfaceType(surface);
+        other.setTargetDistanceMeters(targetDistance);
+        other.setIntensityLevel(IntensityLevel.MEDIUM);
+        other.setDurationMinutes(45);
+        return subjects.saveAndFlush(other);
+    }
+
+    private TrainingLot lotOf(Subject lotSubject, LocalDate date) {
+        TrainingLot lot = new TrainingLot();
+        lot.setTrainerId(trainer.getId());
+        lot.setSubjectId(lotSubject.getId());
+        lot.setLotDate(date);
+        lot.setStartTime(LocalTime.of(8, 0));
+        lot.setEndTime(LocalTime.of(9, 0));
+        lot.setMaxCapacity(6);
+        lot.setStatus(LotStatus.SCHEDULED);
+        return lots.saveAndFlush(lot);
+    }
+
+    @Test
+    void specialtyWorkoutsJoinSurfaceAndFallBackToTheTargetDistance() {
+        Subject endurance = subjectOf(SubjectCategory.ENDURANCE, SurfaceType.DIRT, BigDecimal.valueOf(1600));
+        // No actual distance recorded: the subject target distance (1600) is used
+        completedWorkout(lotOf(endurance, today.minusDays(3)), horse1, 7, null);
+
+        List<SpecialtyWorkoutRow> rows = workouts.findSpecialtyWorkouts(List.of(horse1.getId()), today.minusDays(90));
+
+        assertEquals(2, rows.size(), "The fixture's completed workout plus the one just added");
+        SpecialtyWorkoutRow fixtureRow = rows.stream()
+                .filter(r -> r.surfaceType() == SurfaceType.TURF).findFirst().orElseThrow();
+        assertEquals(0, BigDecimal.valueOf(800).compareTo(fixtureRow.distanceMeters()));
+        assertEquals(8, fixtureRow.performanceRating());
+        SpecialtyWorkoutRow fallbackRow = rows.stream()
+                .filter(r -> r.surfaceType() == SurfaceType.DIRT).findFirst().orElseThrow();
+        assertEquals(0, BigDecimal.valueOf(1600).compareTo(fallbackRow.distanceMeters()));
+        assertEquals(horse1.getId(), fallbackRow.horseId());
+    }
+
+    @Test
+    void specialtyWorkoutsLeaveOutRecoveryUnratedUnfinishedAndOldOnes() {
+        Subject recovery = subjectOf(SubjectCategory.RECOVERY, SurfaceType.SYNTHETIC, BigDecimal.valueOf(500));
+        Subject speed = subjectOf(SubjectCategory.SPEED, SurfaceType.TURF, BigDecimal.valueOf(1000));
+        completedWorkout(lotOf(recovery, today.minusDays(2)), horse1, 9, null);          // recovery category
+        completedWorkout(lotOf(speed, today.minusDays(3)), horse1, null, null);           // no rating
+        workout(lotOf(speed, today.minusDays(4)), horse1, WorkoutStatus.SCHEDULED);       // not completed
+        completedWorkout(lotOf(speed, today.minusDays(120)), horse1, 9, null);           // before the window
+        completedWorkout(lotOf(speed, today.minusDays(5)), horse2, 9, null);             // another horse
+
+        List<SpecialtyWorkoutRow> rows = workouts.findSpecialtyWorkouts(List.of(horse1.getId()), today.minusDays(90));
+
+        assertEquals(1, rows.size(), "Only the fixture's rated, completed, non-recovery, in-window workout is left");
+        assertEquals(SurfaceType.TURF, rows.get(0).surfaceType());
+        assertEquals(0, BigDecimal.valueOf(800).compareTo(rows.get(0).distanceMeters()));
+    }
+
+    @Test
+    void specialtyWorkoutsOfManyHorsesComeInOneQuery() {
+        Subject speed = subjectOf(SubjectCategory.SPEED, SurfaceType.TURF, BigDecimal.valueOf(1000));
+        completedWorkout(lotOf(speed, today.minusDays(5)), horse2, 6, null);
+
+        List<SpecialtyWorkoutRow> rows = workouts.findSpecialtyWorkouts(
+                List.of(horse1.getId(), horse2.getId()), today.minusDays(90));
+
+        assertEquals(2, rows.size());
+        assertTrue(rows.stream().anyMatch(r -> r.horseId().equals(horse1.getId())));
+        assertTrue(rows.stream().anyMatch(r -> r.horseId().equals(horse2.getId())));
     }
 }

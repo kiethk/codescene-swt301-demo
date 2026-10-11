@@ -26,6 +26,7 @@ export { Notice } from './Notice';
 export { PageHeader } from './PageHeader';
 export { Pagination } from './Pagination';
 export { FieldLabel, Panel, SectionTitle } from './Panel';
+export { ProgressBar, type ProgressSegment } from './ProgressBar';
 export { Popover, PopoverContent, PopoverTrigger } from './Popover';
 export { PageSection, ScreenLayout } from './ScreenLayout';
 export { FilterChips, SegmentedControl, type SegmentOption } from './SegmentedControl';

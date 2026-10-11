@@ -1,11 +1,6 @@
 import { apiGet, apiPost } from '@/services/api';
+import type { ApiResponse } from '@/types/horse';
 import type { CreateRaceRegistrationRequest, RaceRegistrationResponse } from '../types';
-
-interface ApiResponse<T> {
-  success: boolean;
-  data: T;
-  message?: string;
-}
 
 export const racingService = {
   listMine: async (horseId?: number): Promise<RaceRegistrationResponse[]> => {

@@ -6,6 +6,7 @@ import com.rtms.backend.horse.entity.Horse;
 import com.rtms.backend.horse.enums.HorseStatus;
 import com.rtms.backend.horse.service.HorseService;
 import com.rtms.backend.training.service.HorsePerformanceService;
+import com.rtms.backend.training.service.HorseSpecialtyService;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 
 import com.rtms.backend.notification.dto.HorseAlertResponse;
 import com.rtms.backend.training.dto.HorseFitnessTrendItemResponse;
+import com.rtms.backend.training.dto.HorseSpecialtyResponse;
 import org.springframework.format.annotation.DateTimeFormat;
 import java.time.LocalDate;
 import java.util.List;
@@ -24,10 +26,13 @@ public class HorseController {
 
     private final HorseService horseService;
     private final HorsePerformanceService performanceService;
+    private final HorseSpecialtyService specialtyService;
 
-    public HorseController(HorseService horseService, HorsePerformanceService performanceService) {
+    public HorseController(HorseService horseService, HorsePerformanceService performanceService,
+                           HorseSpecialtyService specialtyService) {
         this.horseService = horseService;
         this.performanceService = performanceService;
+        this.specialtyService = specialtyService;
     }
 
     @PreAuthorize("hasAuthority('HORSE_VIEW')")
@@ -81,6 +86,15 @@ public class HorseController {
             @PathVariable Long id,
             @AuthenticationPrincipal AuthenticatedUser currentUser) {
         return ApiResponse.success(performanceService.getHorseAlerts(id, currentUser));
+    }
+
+    /** Sở trường thi đấu suy ra từ các buổi tập; vai nào xem được ngựa thì xem được. (Racing specialty inferred from workouts.) */
+    @PreAuthorize("hasAuthority('HORSE_VIEW')")
+    @GetMapping("/{id}/specialty")
+    public ApiResponse<HorseSpecialtyResponse> getSpecialty(
+            @PathVariable Long id,
+            @AuthenticationPrincipal AuthenticatedUser currentUser) {
+        return ApiResponse.success(specialtyService.getSpecialty(id, currentUser));
     }
 
 }

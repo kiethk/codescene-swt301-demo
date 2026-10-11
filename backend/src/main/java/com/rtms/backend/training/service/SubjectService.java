@@ -13,8 +13,8 @@ import java.util.List;
 @Service
 public class SubjectService {
 
-    private static final int MIN_DURATION_MINUTES = 15;
-    private static final int MAX_DURATION_MINUTES = 240;
+    public static final int MIN_DURATION_MINUTES = 15;
+    public static final int MAX_DURATION_MINUTES = 240;
     private static final int DEFAULT_DURATION_MINUTES = 60;
 
     private final SubjectRepository subjectRepository;

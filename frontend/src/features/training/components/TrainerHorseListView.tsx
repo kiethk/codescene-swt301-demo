@@ -1,186 +1,167 @@
 'use client';
 
-import { SearchInput } from '@/components/ui/Input';
-import { FilterChips } from '@/components/ui/SegmentedControl';
-import { Pill } from '@/components/ui/StatusBadge';
-import { useEffect, useState, useMemo } from 'react';
-import Link from 'next/link';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Button,
+  EmptyState,
+  FieldLabel,
+  FilterChips,
+  HorseAvatar,
+  LinkButton,
+  ListSkeleton,
+  Notice,
+  PageHeader,
+  Panel,
+  Pill,
+  ProgressBar,
+  ScreenLayout,
+  SearchInput,
+} from '@/components/ui';
+import { HorseSpecialtyBadges } from '@/features/horses/shared/components/HorseSpecialtyBadges';
+import { displayError, formatNumber } from '@/lib/display';
 import { trainingService } from '../services/trainingService';
 import type { TrainerDashboardHorse } from '../types';
-import { Panel } from '@/components/ui/Panel';
-import { Icon } from '@/components/ui/Icon';
-import { Button } from '@/components/ui/Button';
-import { PageHeader } from '@/components/ui/PageHeader';
-import { PageSection, ScreenLayout } from '@/components/ui/ScreenLayout';
-import { Notice } from '@/components/ui/Notice';
-import { ListSkeleton } from '@/components/ui/states';
-import { displayError } from '@/lib/display';
+import { RatingPill } from './RatingPill';
+
+type HorseFilter = 'ALL' | 'ACTIVE' | 'ALERT';
+
+function HorseCard({ horse }: { horse: TrainerDashboardHorse }) {
+  return (
+    <Panel padded className="flex flex-col justify-between gap-4">
+      <div className="space-y-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-3">
+            <HorseAvatar name={horse.horseName} size={40} />
+            <div className="min-w-0">
+              <h3 className="truncate text-base font-semibold text-[var(--color-text-primary)]">{horse.horseName}</h3>
+              <p className="truncate text-xs text-[var(--color-text-secondary)]">
+                {horse.planStatus === 'NONE' ? 'No training course assigned' : horse.courseName}
+              </p>
+            </div>
+          </div>
+          {horse.alertsCount > 0
+            ? <Pill tone="danger" size="sm" icon="alert-triangle">{horse.alertsCount} alerts</Pill>
+            : <Pill tone="success" size="sm" icon="check">Clear</Pill>}
+        </div>
+
+        <HorseSpecialtyBadges specialty={horse.specialty} />
+
+        {horse.totalSessions > 0 ? (
+          <div className="space-y-1">
+            <div className="flex items-center justify-between text-xs text-[var(--color-text-secondary)]">
+              <span>Course progress</span>
+              <span className="font-semibold text-[var(--color-text-primary)]">
+                {horse.completedSessions}/{horse.totalSessions} sessions ({formatNumber(horse.progressPercent)}%)
+              </span>
+            </div>
+            <ProgressBar label={`${horse.horseName} course progress`} value={horse.progressPercent} size="sm" tone="info" />
+          </div>
+        ) : (
+          <p className="text-xs text-[var(--color-text-muted)]">No sessions scheduled</p>
+        )}
+
+        <div className="grid grid-cols-2 gap-2 border-t border-[var(--color-border)] pt-3">
+          <div className="space-y-1">
+            <FieldLabel>Latest performance</FieldLabel>
+            <RatingPill rating={horse.latestPerformanceRating} />
+          </div>
+          <div className="space-y-1">
+            <FieldLabel>30-day average</FieldLabel>
+            <p className="text-sm font-semibold text-[var(--color-text-primary)]">
+              {horse.avgPerformanceRating30d != null ? `${formatNumber(horse.avgPerformanceRating30d, 1)}/10` : '—'}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <LinkButton href={`/trainer/horses/${horse.horseId}`} size="sm" icon="trending-up" className="w-full">
+        View fitness and alerts
+      </LinkButton>
+    </Panel>
+  );
+}
 
 export function TrainerHorseListView() {
   const [horses, setHorses] = useState<TrainerDashboardHorse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState<HorseFilter>('ALL');
 
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterMode, setFilterMode] = useState<'ALL' | 'ACTIVE' | 'ALERT'>('ALL');
-
-  const loadHorses = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await trainingService.getDashboard();
-      setHorses(data);
-    } catch (err: unknown) {
-      setError(displayError(err, 'Unable to load the horse list.'));
+      setHorses(await trainingService.getDashboard());
+    } catch (cause) {
+      setError(displayError(cause, 'Unable to load the horse list.'));
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadHorses();
-  }, []);
+    load();
+  }, [load]);
 
-  const filteredHorses = useMemo(() => {
-    return horses.filter((h) => {
-      const matchSearch = h.horseName.toLowerCase().includes(searchTerm.toLowerCase());
-      if (!matchSearch) return false;
+  const inTraining = useMemo(() => horses.filter((h) => h.planStatus === 'ACTIVE').length, [horses]);
+  const withAlerts = useMemo(() => horses.filter((h) => h.alertsCount > 0).length, [horses]);
 
-      if (filterMode === 'ACTIVE') return h.planStatus === 'ACTIVE';
-      if (filterMode === 'ALERT') return (h.alertCount ?? h.alertsCount ?? 0) > 0;
+  const visibleHorses = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return horses.filter((horse) => {
+      if (query && !horse.horseName.toLowerCase().includes(query)) return false;
+      if (filter === 'ACTIVE') return horse.planStatus === 'ACTIVE';
+      if (filter === 'ALERT') return horse.alertsCount > 0;
       return true;
     });
-  }, [horses, searchTerm, filterMode]);
+  }, [horses, search, filter]);
 
   return (
     <ScreenLayout variant="list">
-      <PageHeader title="Assigned horses" description="Review each horse’s profile, fitness trend and health indicators." actions={<>
-          <Link href="/trainer/dashboard">
-            <Button variant="secondary" size="sm">
-              <Icon name="grid" size={14} />
-              View dashboard
-            </Button>
-          </Link>
-          <Button variant="secondary" size="sm" onClick={loadHorses}>
-            <Icon name="refresh" size={14} />
-            Refresh
-          </Button>
-      </>} />
+      <PageHeader
+        title="Assigned horses"
+        description="Review each horse’s profile, racing specialty, fitness trend and health indicators."
+        actions={
+          <>
+            <LinkButton href="/trainer/dashboard" size="sm" icon="grid">View dashboard</LinkButton>
+            <Button size="sm" icon="refresh" onClick={load} loading={loading}>Refresh</Button>
+          </>
+        }
+      />
 
-      <PageSection title="Assigned horse overview">
-      <Panel padded className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <FilterChips
-            label="Horse filter"
-            value={filterMode}
-            onChange={setFilterMode}
-            options={[
-              { value: 'ALL', label: 'All', count: horses.length },
-              { value: 'ACTIVE', label: 'In training', count: horses.filter((h) => h.planStatus === 'ACTIVE').length },
-              { value: 'ALERT', label: 'Alerts', count: horses.filter((h) => (h.alertCount ?? h.alertsCount ?? 0) > 0).length },
-            ]}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <FilterChips
+          label="Horse filter"
+          value={filter}
+          onChange={setFilter}
+          options={[
+            { value: 'ALL', label: 'All', count: horses.length },
+            { value: 'ACTIVE', label: 'In training', count: inTraining },
+            { value: 'ALERT', label: 'Alerts', count: withAlerts },
+          ]}
+        />
+        <SearchInput className="w-full sm:w-64" value={search} onChange={setSearch} placeholder="Search horses…" />
+      </div>
+
+      {error && <Notice tone="error">{error}</Notice>}
+
+      {loading && horses.length === 0 ? (
+        <Panel padded><ListSkeleton rows={5} /></Panel>
+      ) : visibleHorses.length === 0 ? (
+        <Panel padded>
+          <EmptyState
+            icon="horse"
+            title={horses.length === 0 ? 'No horses assigned yet' : 'No horses match the selected filters'}
+            description={horses.length === 0 ? 'Horses appear here once they are assigned to a stall in your area.' : undefined}
           />
-          <SearchInput className="w-full sm:w-64" value={searchTerm} onChange={setSearchTerm} placeholder="Search horses..." />
+        </Panel>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {visibleHorses.map((horse) => <HorseCard key={horse.horseId} horse={horse} />)}
         </div>
-
-        {error && <Notice tone="error">{error}</Notice>}
-
-        {loading ? (
-          <ListSkeleton rows={5} />
-        ) : filteredHorses.length === 0 ? (
-          <div className="py-12 text-center">
-            <p className="text-sm font-medium text-[var(--color-text-secondary)]">
-              No horses match the selected filters.
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredHorses.map((horse) => (
-              <div
-                key={horse.horseId}
-                className="flex flex-col justify-between rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-panel)] hover:border-[var(--color-border-strong)] transition-all"
-              >
-                <div>
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <h3 className="text-base font-bold text-[var(--color-text-primary)]">
-                        {horse.horseName}
-                      </h3>
-                      <p className="text-xs text-[var(--color-text-secondary)]">
-                        {horse.courseName || 'No training course assigned'}
-                      </p>
-                    </div>
-
-                    {(horse.alertCount ?? horse.alertsCount ?? 0) > 0 ? (
-                      <Pill tone="danger" size="sm" icon="alert-triangle">{horse.alertCount ?? horse.alertsCount} alerts</Pill>
-                    ) : (
-                      <Pill tone="success" size="sm" icon="check">Clear</Pill>
-                    )}
-                  </div>
-
-                  {/* Progress & Stats */}
-                  <div className="mt-4 space-y-2.5">
-                    {horse.totalSessions > 0 ? (
-                      <div>
-                        <div className="flex items-center justify-between text-xs text-[var(--color-text-secondary)]">
-                          <span>Course progress</span>
-                          <span className="font-semibold text-[var(--color-text-primary)]">
-                            {horse.completedSessions}/{horse.totalSessions} sessions ({horse.progressPercent}%)
-                          </span>
-                        </div>
-                        <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-[var(--color-surface-subtle)]">
-                          <div
-                            style={{ width: `${Math.min(100, horse.progressPercent)}%` }}
-                            className="h-full bg-[var(--color-info)] rounded-full"
-                          />
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-xs text-[var(--color-text-muted)] italic">
-                        No sessions scheduled
-                      </div>
-                    )}
-
-                    <div className="grid grid-cols-2 gap-2 border-t border-[var(--color-border)] pt-2.5 text-xs">
-                      <div>
-                        <span className="text-xs uppercase text-[var(--color-text-muted)]">
-                          Latest performance
-                        </span>
-                        <p className="font-semibold text-[var(--color-text-primary)]">
-                          {horse.latestPerformanceRating != null
-                            ? `${horse.latestPerformanceRating}/10`
-                            : '-'}
-                        </p>
-                      </div>
-                      <div>
-                        <span className="text-xs uppercase text-[var(--color-text-muted)]">
-                          30-day average
-                        </span>
-                        <p className="font-semibold text-[var(--color-success)]">
-                          {horse.avgPerformanceRating30d != null
-                            ? `${horse.avgPerformanceRating30d.toFixed(1)}/10`
-                            : '-'}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-4 border-t border-[var(--color-border)] pt-3">
-                  <Link href={`/trainer/horses/${horse.horseId}`} className="w-full">
-                    <Button variant="secondary" size="sm" className="w-full justify-center">
-                      <Icon name="trending-up" size={13} />
-                      View fitness and alerts
-                    </Button>
-                  </Link>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Panel>
-      </PageSection>
+      )}
     </ScreenLayout>
   );
 }

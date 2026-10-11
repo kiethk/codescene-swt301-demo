@@ -201,6 +201,7 @@ Import from `@/components/ui`.
 | Hint on hover | `Tooltip` |
 | Card or section container | `Panel` (`tone`, `interactive`), `SectionTitle`, `FieldLabel` |
 | KPI number | `MetricCard` |
+| Progress or distribution bar | `ProgressBar` (`value` / `max`, or stacked `segments`) |
 | Uniform data list | `DataTable` (sort, search, pagination, loading and empty states built in) |
 | Custom table layout | `Table` (`bare` inside a `Panel`), `THead`, `TBody`, `Tr`, `Th`, `Td` |
 | Status label | `Pill` with a tone; keep the status-to-tone map in the feature |

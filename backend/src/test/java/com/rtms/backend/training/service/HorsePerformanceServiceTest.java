@@ -8,6 +8,7 @@ import com.rtms.backend.stable.repository.GroomIncidentReportRepository;
 import com.rtms.backend.training.dto.DashboardHorseRow;
 import com.rtms.backend.training.dto.DashboardPlanRow;
 import com.rtms.backend.training.dto.HorseFitnessTrendItemResponse;
+import com.rtms.backend.training.dto.HorseSpecialtyResponse;
 import com.rtms.backend.training.dto.IncidentCountRow;
 import com.rtms.backend.training.dto.RecentWorkoutRow;
 import com.rtms.backend.training.dto.TrainerDashboardHorseResponse;
@@ -26,6 +27,7 @@ import org.springframework.security.access.AccessDeniedException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -48,13 +50,19 @@ class HorsePerformanceServiceTest {
     @Mock
     private HorseRepository horseRepository;
 
+    @Mock
+    private HorseSpecialtyService specialtyService;
+
     private HorsePerformanceService service;
 
     private final AuthenticatedUser manager = new AuthenticatedUser(1L, "manager@example.com", "CLUB_MANAGER");
 
     @BeforeEach
     void setUp() {
-        service = new HorsePerformanceService(workoutRepository, planRepository, incidentReportRepository, horseRepository);
+        // Bộ kiểm quyền chạy thật trên repository giả, nên các test phân quyền cũ giữ nguyên.
+        // (The access check runs for real on mocked repositories, so the existing authorization tests stay valid.)
+        service = new HorsePerformanceService(workoutRepository, planRepository, incidentReportRepository,
+                new HorseViewAccessService(horseRepository, planRepository), specialtyService);
     }
 
     private Horse horse(Long id, Long ownerId) {
@@ -227,6 +235,8 @@ class HorsePerformanceServiceTest {
                         workout(50L, today.minusDays(2), null, null, 6)));
         when(incidentReportRepository.countIncidentsByHorseIds(eq(List.of(50L, 51L)), any(LocalDateTime.class)))
                 .thenReturn(List.of(new IncidentCountRow(51L, 2L)));
+        HorseSpecialtyResponse noData = new HorseSpecialtyResponse(3, List.of(), null, List.of());
+        when(specialtyService.getSpecialties(List.of(50L, 51L))).thenReturn(Map.of(50L, noData, 51L, noData));
 
         List<TrainerDashboardHorseResponse> dashboard = service.getTrainerDashboard(trainer);
 
@@ -243,6 +253,7 @@ class HorsePerformanceServiceTest {
         assertEquals(8, active.getLatestPerformanceRating());
         assertEquals(7.0, active.getAvgPerformanceRating30d());
         assertEquals(0, active.getAlertsCount());
+        assertSame(noData, active.getSpecialty(), "The specialty comes from the shared specialty service");
 
         TrainerDashboardHorseResponse idle = dashboard.get(1);
         assertEquals("NONE", idle.getPlanStatus());
@@ -251,11 +262,12 @@ class HorsePerformanceServiceTest {
         assertEquals(1, idle.getAlertsCount(), "2 incidents in 14 days raise the repeated-incidents alert");
         assertEquals(List.of("Repeated health incidents"), idle.getAlertTitles());
 
-        // Cố định 4 truy vấn dù có bao nhiêu ngựa (4 queries no matter how many horses)
+        // Cố định số truy vấn dù có bao nhiêu ngựa (a fixed number of queries no matter how many horses)
         verify(planRepository, times(1)).findDashboardHorses(trainerId);
         verify(planRepository, times(1)).findDashboardPlans(trainerId);
         verify(workoutRepository, times(1)).findRecentCompletedWorkouts(any(), any());
         verify(incidentReportRepository, times(1)).countIncidentsByHorseIds(any(), any());
+        verify(specialtyService, times(1)).getSpecialties(any());
     }
 
     @Test
