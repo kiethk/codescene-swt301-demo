@@ -3,7 +3,7 @@ package com.rtms.backend.admission.controller;
 import com.rtms.backend.admission.entity.AdmissionDocument;
 import com.rtms.backend.admission.enums.AdmissionDocumentType;
 import com.rtms.backend.security.AuthenticatedUser;
-import com.rtms.backend.admission.service.AdmissionFileStorage;
+import com.rtms.backend.common.storage.FileStorageService;
 import com.rtms.backend.admission.service.AdmissionQueryService;
 import com.rtms.backend.admission.service.OwnerAdmissionService;
 import org.springframework.core.io.Resource;
@@ -23,10 +23,10 @@ import java.nio.charset.StandardCharsets;
 @RequestMapping("/api/admissions")
 public class AdmissionDocumentDownloadController {
     private final OwnerAdmissionService service;
-    private final AdmissionFileStorage storage;
+    private final FileStorageService storage;
     private final AdmissionQueryService admissionQueryService;
 
-    public AdmissionDocumentDownloadController(OwnerAdmissionService service, AdmissionFileStorage storage,
+    public AdmissionDocumentDownloadController(OwnerAdmissionService service, FileStorageService storage,
                                                 AdmissionQueryService admissionQueryService) {
         this.service = service;
         this.storage = storage;
@@ -41,7 +41,7 @@ public class AdmissionDocumentDownloadController {
             admissionQueryService.assertVetAssignedOrManager(id, viewer);
         }
         AdmissionDocument document = service.getDocumentForViewer(id, documentId, viewer);
-        if (document.getFileUrl() != null && !document.getFileUrl().startsWith("local:")) {
+        if (document.getFileUrl() != null && !storage.isLocal(document.getFileUrl())) {
             return ResponseEntity.status(HttpStatus.FOUND)
                     .location(URI.create(document.getFileUrl()))
                     .build();

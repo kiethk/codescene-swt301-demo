@@ -1,5 +1,5 @@
 package com.rtms.backend.stable.service;
-import com.rtms.backend.admission.service.AdmissionFileStorage;
+import com.rtms.backend.common.storage.FileStorageService;
 import com.rtms.backend.medical.service.CareScheduleService;
 import com.rtms.backend.training.service.TrainingDecisionService;
 
@@ -34,14 +34,14 @@ public class GroomIncidentReportService {
 
     private final GroomIncidentReportRepository incidentReportRepository;
     private final HorseRepository horseRepository;
-    private final AdmissionFileStorage fileStorage;
+    private final FileStorageService fileStorage;
     private final CareScheduleRepository careScheduleRepository;
     private final CareScheduleService careScheduleService;
     private final TrainingDecisionService trainingDecisionService;
 
     public GroomIncidentReportService(GroomIncidentReportRepository incidentReportRepository,
                                       HorseRepository horseRepository,
-                                      AdmissionFileStorage fileStorage,
+                                      FileStorageService fileStorage,
                                       CareScheduleRepository careScheduleRepository,
                                       CareScheduleService careScheduleService,
                                       TrainingDecisionService trainingDecisionService) {
@@ -201,8 +201,8 @@ public class GroomIncidentReportService {
                     "Bạn chỉ được đính ảnh vào báo cáo do chính mình gửi!");
         }
 
-        // AdmissionFileStorage nhận cả PDF. Báo cáo sự cố thì chỉ nhận ảnh —
-        // chặn ở đây trước khi ghi xuống đĩa.
+        // FileStorageService also accepts PDFs. Incident reports take images only,
+        // so reject anything else before it is stored.
         String mediaType = file.getContentType() == null
                 ? "" : file.getContentType().toLowerCase(Locale.ROOT);
         if (!mediaType.startsWith("image/")) {
@@ -211,15 +211,15 @@ public class GroomIncidentReportService {
         }
 
         String oldKey = report.getImageUrl();
-        String newKey = fileStorage.store(file);   // tự kiểm dung lượng + định dạng
+        String newKey = fileStorage.store(file, "rtms/incidents/" + reportId);   // validates size and format
 
         try {
             report.setImageUrl(newKey);
             GroomIncidentReport saved = incidentReportRepository.save(report);
-            fileStorage.deleteIfLocal(oldKey);     // dọn ảnh cũ SAU khi ghi DB thành công
+            fileStorage.delete(oldKey);     // remove the old image only AFTER the DB write succeeds
             return saved;
         } catch (RuntimeException ex) {
-            fileStorage.deleteIfLocal(newKey);     // ghi DB hỏng -> không để lại file mồ côi
+            fileStorage.delete(newKey);     // DB write failed -> do not leave an orphan file
             throw ex;
         }
     }

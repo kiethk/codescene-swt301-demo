@@ -1,5 +1,6 @@
 package com.rtms.backend.admission.service;
 
+import com.rtms.backend.common.storage.FileStorageService;
 import com.rtms.backend.admission.dto.GroomAdmissionQueueResponse;
 import com.rtms.backend.admission.dto.TrainerAdmissionQueueResponse;
 import com.rtms.backend.admission.entity.AdmissionApplication;
@@ -44,7 +45,7 @@ class AdmissionQueryServiceTest {
                 documents,
                 mock(StableStallRepository.class),
                 mock(HealthRecordRepository.class),
-                mock(AdmissionFileStorage.class),
+                mock(FileStorageService.class),
                 mock(UserRepository.class));
     }
 
