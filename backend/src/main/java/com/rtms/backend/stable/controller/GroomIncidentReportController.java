@@ -60,8 +60,9 @@ public class GroomIncidentReportController {
     @GetMapping("/{id}")
     @PreAuthorize("hasAuthority('GROOM_INCIDENT_REPORT_VIEW')")
     public ApiResponse<GroomIncidentReport> getReportById(
-            @PathVariable Long id) {
-        GroomIncidentReport report = incidentReportService.getReportById(id);
+            @PathVariable Long id,
+            @AuthenticationPrincipal AuthenticatedUser currentUser) {
+        GroomIncidentReport report = incidentReportService.getReportById(id, currentUser);
         return ApiResponse.success(report);
     }
 
@@ -84,10 +85,12 @@ public class GroomIncidentReportController {
      */
     @GetMapping("/{id}/image")
     @PreAuthorize("hasAuthority('GROOM_INCIDENT_REPORT_VIEW')")
-    public org.springframework.http.ResponseEntity<org.springframework.core.io.Resource> getImage(@PathVariable Long id) {
-        org.springframework.core.io.Resource file = incidentReportService.loadImage(id);
+    public org.springframework.http.ResponseEntity<org.springframework.core.io.Resource> getImage(
+            @PathVariable Long id,
+            @AuthenticationPrincipal AuthenticatedUser currentUser) {
+        org.springframework.core.io.Resource file = incidentReportService.loadImage(id, currentUser);
         return org.springframework.http.ResponseEntity.ok()
-                .contentType(incidentReportService.imageMediaType(id))
+                .contentType(incidentReportService.imageMediaType(id, currentUser))
                 .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "inline; filename=incident-" + id)
                 .header("X-Content-Type-Options", "nosniff")
                 .body(file);

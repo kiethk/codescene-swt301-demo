@@ -28,12 +28,12 @@ public class GroomDailyTaskScheduler {
     @Scheduled(cron = "0 0 0 * * *", zone = "Asia/Ho_Chi_Minh")
     public void scheduleDailyRoutineGeneration() {
         LocalDate today = LocalDate.now();
-        log.info("[SOP Scheduler] Bắt đầu tự động sinh công việc SOP cho ngày: {}", today);
+        log.info("[SOP Scheduler] Generating routine tasks for {}", today);
         try {
             List<GroomDailyTask> tasks = taskService.generateDailyRoutineTasks(today);
-            log.info("[SOP Scheduler] Hoàn thành sinh {} công việc SOP hàng ngày.", tasks.size());
+            log.info("[SOP Scheduler] Generated {} routine tasks.", tasks.size());
         } catch (Exception e) {
-            log.error("[SOP Scheduler] Lỗi khi tự động sinh việc hàng ngày: {}", e.getMessage(), e);
+            log.error("[SOP Scheduler] Could not generate the routine tasks: {}", e.getMessage(), e);
         }
     }
 }

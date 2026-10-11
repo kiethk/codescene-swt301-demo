@@ -189,7 +189,6 @@ class OwnerAdmissionServiceTest {
             AdmissionDocument doc = inv.getArgument(0);
             doc.setId(33L); return doc;
         });
-        when(files.publicUrl(any(), any())).thenReturn("/api/admissions/3/documents/33/file");
         var file = new MockMultipartFile("file", "C:\\fakepath\\photo.jpg", "image/jpeg", new byte[]{1,2,3});
         var result = service.upload(7L, 3L, AdmissionDocumentType.HORSE_PHOTO,
                 LocalDate.of(2026, 9, 1), "Arrival", file);

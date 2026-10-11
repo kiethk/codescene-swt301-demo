@@ -124,7 +124,7 @@ class GroomIncidentReportServiceTest {
         IllegalStateException ex = assertThrows(IllegalStateException.class,
                 () -> incidentReportService.handleReport(1L, req, vetUser));
 
-        assertTrue(ex.getMessage().contains("Không thể chuyển báo cáo từ REPORTED sang RESOLVED"));
+        assertTrue(ex.getMessage().contains("cannot move from REPORTED to RESOLVED"));
         verify(incidentReportRepository, never()).save(any());
     }
 
@@ -276,5 +276,40 @@ class GroomIncidentReportServiceTest {
         AuthenticatedUser groom = new AuthenticatedUser(5L, "groom@example.com", "GROOM");
 
         assertThrows(RuntimeException.class, () -> incidentReportService.createReport(req, groom));
+    }
+
+    @Test
+    @DisplayName("getReportById / loadImage: a Groom cannot read another Groom's report or its image")
+    void testRead_OtherGroom_ThrowsAccessDenied() {
+        GroomIncidentReport report = new GroomIncidentReport();
+        report.setId(10L);
+        report.setGroomId(5L);
+        report.setImageUrl("local:photo.jpg");
+        when(incidentReportRepository.findById(10L)).thenReturn(Optional.of(report));
+
+        AuthenticatedUser otherGroom = new AuthenticatedUser(99L, "other@example.com", "GROOM");
+
+        assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                () -> incidentReportService.getReportById(10L, otherGroom));
+        assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                () -> incidentReportService.loadImage(10L, otherGroom));
+        assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                () -> incidentReportService.imageMediaType(10L, otherGroom));
+        verify(fileStorage, never()).load(any());
+    }
+
+    @Test
+    @DisplayName("getReportById: the reporting Groom and a Vet can read the report")
+    void testRead_ReporterAndVet_Allowed() {
+        GroomIncidentReport report = new GroomIncidentReport();
+        report.setId(10L);
+        report.setGroomId(5L);
+        when(incidentReportRepository.findById(10L)).thenReturn(Optional.of(report));
+
+        AuthenticatedUser reporter = new AuthenticatedUser(5L, "groom@example.com", "GROOM");
+        AuthenticatedUser vet = new AuthenticatedUser(100L, "vet@example.com", "VETERINARIAN");
+
+        assertSame(report, incidentReportService.getReportById(10L, reporter));
+        assertSame(report, incidentReportService.getReportById(10L, vet));
     }
 }

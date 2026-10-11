@@ -108,7 +108,7 @@ class StableStallServiceTest {
         IllegalStateException ex = assertThrows(IllegalStateException.class,
                 () -> stableStallService.assignGroom(10L, 5L));
 
-        assertTrue(ex.getMessage().contains("đã phụ trách 3 chuồng"));
+        assertTrue(ex.getMessage().contains("already looks after 3 stalls"));
         verify(stableStallRepository, never()).save(any());
     }
 
@@ -132,7 +132,7 @@ class StableStallServiceTest {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> stableStallService.assignGroom(10L, 8L));
 
-        assertTrue(ex.getMessage().contains("không phải GROOM"));
+        assertTrue(ex.getMessage().contains("not GROOM"));
         verify(stableStallRepository, never()).save(any());
     }
 

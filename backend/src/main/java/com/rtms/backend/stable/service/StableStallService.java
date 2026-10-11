@@ -45,7 +45,7 @@ public class StableStallService {
     @Transactional
     public StableStall assignGroom(Long stallId, Long groomId) {
         StableStall stall = stableStallRepository.findById(stallId)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy chuồng #" + stallId));
+                .orElseThrow(() -> new RuntimeException("Stall #" + stallId + " not found"));
 
         // TH1: gỡ Groom khỏi chuồng -> không cần kiểm tra BR-06/BR-09,
         // nhưng vẫn phải đồng bộ buổi tập: chúng thành "chưa phân công" để
@@ -65,21 +65,21 @@ public class StableStallService {
 
         // TH3: kiểm tra người được gán đúng là GROOM
         User user = userRepository.findById(groomId)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy người dùng #" + groomId));
+                .orElseThrow(() -> new RuntimeException("User #" + groomId + " not found"));
 
         if (user.getRole() == null || !"GROOM".equalsIgnoreCase(user.getRole().getName())) {
             throw new IllegalArgumentException(String.format(
-                    "Người dùng '%s' có vai trò %s, không phải GROOM — không thể gán vào chuồng!",
+                    "User '%s' has the role %s, not GROOM, and cannot be assigned to a stall",
                     user.getFullName(),
-                    user.getRole() != null ? user.getRole().getName() : "KHÔNG XÁC ĐỊNH"));
+                    user.getRole() != null ? user.getRole().getName() : "UNKNOWN"));
         }
 
         // TH4: BR-06
         long assignedCount = stableStallRepository.countByGroomId(groomId);
         if (assignedCount >= FarmSchedulePolicy.MAX_STALLS_PER_GROOM) {
             throw new IllegalStateException(String.format(
-                    "Groom '%s' đã phụ trách %d chuồng. Mỗi Groom chỉ được nhận tối đa %d chuồng "
-                  + "để đảm bảo chất lượng chăm sóc và phúc lợi chiến mã!",
+                    "Groom '%s' already looks after %d stalls. A groom may have at most %d stalls, "
+                  + "to protect the quality of care and the horses' welfare",
                     user.getFullName(), assignedCount, FarmSchedulePolicy.MAX_STALLS_PER_GROOM));
         }
 
