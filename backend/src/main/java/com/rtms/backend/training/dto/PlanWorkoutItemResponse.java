@@ -1,8 +1,8 @@
 package com.rtms.backend.training.dto;
-import com.rtms.backend.training.service.HorseTrainingPlanService;
 
 import com.rtms.backend.training.entity.TrainingLot;
 import com.rtms.backend.training.entity.TrainingWorkout;
+import com.rtms.backend.training.enums.WorkoutStatus;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -10,6 +10,7 @@ import java.time.LocalTime;
 
 /**
  * Workout kèm thông tin lot — vì workout không còn tự giữ ngày/giờ/bài tập.
+ * (A workout with its lot info, since a workout no longer holds the date, time or subject itself.)
  */
 public class PlanWorkoutItemResponse {
 
@@ -39,8 +40,12 @@ public class PlanWorkoutItemResponse {
      * mới thấy cơ chế ghép nhóm đang hoạt động — và hiểu rằng assignedGroomId
      * là người dắt RIÊNG con này, không phải "groom của lot".
      *
-     * Điền ở HorseTrainingPlanService.buildWorkoutItems bằng MỘT truy vấn gom
-     * cho toàn bộ lot của kế hoạch, không phải mỗi buổi một truy vấn.
+     * Được tính bằng sub-query ngay trong câu SELECT của TrainingWorkoutRepository.findPlanWorkoutItems,
+     * không phải mỗi buổi một truy vấn.
+     * (Total number of ACTIVE horses in this lot. Why it is needed: the plan detail page shows only ONE horse, so lotId looks like a meaningless
+     *  number. Knowing how many horses share the lot shows the trainer that grouping is working, and that assignedGroomId is the person leading
+     *  THIS horse alone, not "the lot groom".)
+     * (Computed by a sub-query inside TrainingWorkoutRepository.findPlanWorkoutItems, not one query per workout.)
      */
     private Integer lotOccupancy;
 
@@ -61,6 +66,39 @@ public class PlanWorkoutItemResponse {
         this.topSpeedKmh = w.getTopSpeedKmh();
         this.performanceRating = w.getPerformanceRating();
         this.trainerFeedback = w.getTrainerFeedback();
+    }
+
+    /**
+     * Constructor cho truy vấn JPQL (SELECT new ...): mọi cột đã được JOIN sẵn,
+     * kể cả số ngựa trong lot.
+     * (Constructor for the JPQL query (SELECT new ...): every column is already joined, including the horse count in the lot.)
+     * (Constructor for the JPQL projection: every column is already joined, including the lot's horse count.)
+     */
+    public PlanWorkoutItemResponse(Long workoutId, Long lotId, LocalDate lotDate,
+                                   LocalTime startTime, LocalTime endTime,
+                                   Long subjectId, String subjectName,
+                                   Long horseId, Long assignedGroomId, WorkoutStatus status,
+                                   BigDecimal actualDistanceMeters, Integer averageHeartRate,
+                                   Integer maxHeartRate, BigDecimal topSpeedKmh,
+                                   Integer performanceRating, String trainerFeedback,
+                                   Long lotOccupancy) {
+        this.workoutId = workoutId;
+        this.lotId = lotId;
+        this.lotDate = lotDate;
+        this.startTime = startTime;
+        this.endTime = endTime;
+        this.subjectId = subjectId;
+        this.subjectName = subjectName;
+        this.horseId = horseId;
+        this.assignedGroomId = assignedGroomId;
+        this.status = status.name();
+        this.actualDistanceMeters = actualDistanceMeters;
+        this.averageHeartRate = averageHeartRate;
+        this.maxHeartRate = maxHeartRate;
+        this.topSpeedKmh = topSpeedKmh;
+        this.performanceRating = performanceRating;
+        this.trainerFeedback = trainerFeedback;
+        this.lotOccupancy = lotOccupancy == null ? null : lotOccupancy.intValue();
     }
 
     public Integer getLotOccupancy() { return lotOccupancy; }

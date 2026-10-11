@@ -7,6 +7,7 @@ import java.time.LocalDate;
 
 /**
  * Một dòng trong danh sách kế hoạch huấn luyện.
+ * (One row in the training plan list.)
  *
  * VÌ SAO CẦN DTO RIÊNG thay vì trả thẳng entity HorseTrainingPlan:
  * dự án không dùng quan hệ JPA trên entity nghiệp vụ, nên entity chỉ có
@@ -16,6 +17,10 @@ import java.time.LocalDate;
  *
  * Ba con số tiến độ đi kèm luôn để danh sách khỏi phải gọi thêm API cho
  * từng dòng.
+ * (WHY A DEDICATED DTO instead of returning the HorseTrainingPlan entity: the project uses no JPA relations on business entities, so the
+ *  entity only has horseId / courseId as numbers. Returning it would make the list show "Plan #27 · horse #15 · course #3", which nobody
+ *  can read. Names must be joined in the query, like PlanWorkoutItemResponse already carries subjectName. The three progress numbers
+ *  come along so the list needs no extra API call per row.)
  */
 public class PlanSummaryResponse {
 
@@ -29,12 +34,15 @@ public class PlanSummaryResponse {
     private TrainingPlanStatus status;
 
     /** Tổng số buổi đã sinh (bằng course.totalSessions lúc tạo). */
+    // (Total workouts generated (equal to course.totalSessions at creation).)
     private Integer totalSessions;
     private Integer completedSessions;
 
     /**
      * Buổi bị huỷ — bị TRỪ khỏi mẫu số khi tính tiến độ.
      * Khoá 12 buổi huỷ 1 sẽ đóng ở 11/11 (100%), không treo mãi ở 91%.
+     * (Cancelled workouts are SUBTRACTED from the denominator when computing progress. A 12-session course with 1 cancelled closes at
+     *  11/11 (100%) instead of hanging forever at 91%.)
      */
     private Integer cancelledSessions;
 
@@ -42,8 +50,8 @@ public class PlanSummaryResponse {
                                Long courseId, String courseName,
                                LocalDate startDate, LocalDate endDate,
                                TrainingPlanStatus status,
-                               Integer totalSessions, Integer completedSessions,
-                               Integer cancelledSessions) {
+                               Long totalSessions, Long completedSessions,
+                               Long cancelledSessions) {
         this.planId = planId;
         this.horseId = horseId;
         this.horseName = horseName;
@@ -52,9 +60,11 @@ public class PlanSummaryResponse {
         this.startDate = startDate;
         this.endDate = endDate;
         this.status = status;
-        this.totalSessions = totalSessions;
-        this.completedSessions = completedSessions;
-        this.cancelledSessions = cancelledSessions;
+        // COUNT/SUM của SQL trả Long; tiến độ không bao giờ vượt Integer. (SQL COUNT/SUM return Long; progress never exceeds the Integer range)
+        // (SQL COUNT/SUM return Long; progress never exceeds Integer range.)
+        this.totalSessions = totalSessions.intValue();
+        this.completedSessions = completedSessions.intValue();
+        this.cancelledSessions = cancelledSessions.intValue();
     }
 
     public Long getPlanId() { return planId; }

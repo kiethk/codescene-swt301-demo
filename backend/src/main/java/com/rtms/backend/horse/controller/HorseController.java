@@ -5,7 +5,9 @@ import com.rtms.backend.horse.dto.CreateHorseRequest;
 import com.rtms.backend.horse.entity.Horse;
 import com.rtms.backend.horse.enums.HorseStatus;
 import com.rtms.backend.horse.service.HorseService;
+import com.rtms.backend.training.service.HorsePerformanceService;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
 import com.rtms.backend.security.AuthenticatedUser;
 import org.springframework.web.bind.annotation.*;
@@ -21,9 +23,11 @@ import java.util.List;
 public class HorseController {
 
     private final HorseService horseService;
+    private final HorsePerformanceService performanceService;
 
-    public HorseController(HorseService horseService) {
+    public HorseController(HorseService horseService, HorsePerformanceService performanceService) {
         this.horseService = horseService;
+        this.performanceService = performanceService;
     }
 
     @PreAuthorize("hasAuthority('HORSE_VIEW')")
@@ -66,14 +70,17 @@ public class HorseController {
     public ApiResponse<List<HorseFitnessTrendItemResponse>> getFitnessTrend(
             @PathVariable Long id,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
-        return ApiResponse.success(horseService.getFitnessTrend(id, from, to));
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @AuthenticationPrincipal AuthenticatedUser currentUser) {
+        return ApiResponse.success(performanceService.getFitnessTrend(id, from, to, currentUser));
     }
 
     @PreAuthorize("hasAuthority('HORSE_VIEW')")
     @GetMapping("/{id}/alerts")
-    public ApiResponse<List<HorseAlertResponse>> getAlerts(@PathVariable Long id) {
-        return ApiResponse.success(horseService.getHorseAlerts(id));
+    public ApiResponse<List<HorseAlertResponse>> getAlerts(
+            @PathVariable Long id,
+            @AuthenticationPrincipal AuthenticatedUser currentUser) {
+        return ApiResponse.success(performanceService.getHorseAlerts(id, currentUser));
     }
 
 }

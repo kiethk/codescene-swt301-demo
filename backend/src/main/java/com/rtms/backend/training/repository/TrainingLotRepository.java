@@ -1,8 +1,7 @@
 package com.rtms.backend.training.repository;
-import com.rtms.backend.training.entity.TrainingWorkout;
-import com.rtms.backend.training.enums.LotStatus;
-import com.rtms.backend.training.enums.WorkoutStatus;
 
+import com.rtms.backend.training.dto.LotHorseNameRow;
+import com.rtms.backend.training.dto.TrainingLotRow;
 import com.rtms.backend.training.entity.TrainingLot;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -10,16 +9,23 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface TrainingLotRepository extends JpaRepository<TrainingLot, Long> {
 
+    // =================================================================
+    // THUẬT TOÁN XẾP KHE (trả entity vì thuật toán cần sửa và lưu lot)
+    // (SLOT ALGORITHM — returns entities because the algorithm edits and saves lots)
+    // =================================================================
+
     /**
      * Mọi lot CÒN HIỆU LỰC của Trainer trong một ngày, sắp theo giờ tăng dần.
-     * Dùng cho thuật toán quét khe — lot đã CANCELLED không còn chiếm chỗ.
-     * Sắp xếp là BẮT BUỘC: con trỏ quét chỉ tiến về phía trước, danh sách lộn
-     * xộn sẽ khiến nó bỏ sót hoặc tính sai khe.
+     * Sắp xếp là BẮT BUỘC: con trỏ quét chỉ tiến về phía trước.
+     * (Every active lot of a trainer on a day, ascending by time. Ordering is REQUIRED: the
+     * scanning pointer only moves forward.)
      */
     @Query("""
            SELECT l FROM TrainingLot l
@@ -32,9 +38,8 @@ public interface TrainingLotRepository extends JpaRepository<TrainingLot, Long> 
                                           @Param("date") LocalDate date);
 
     /**
-     * BƯỚC 1 của thuật toán: các lot cùng Trainer + cùng ngày + CÙNG BÀI TẬP.
-     * Sắp theo giờ tăng dần để lot sớm được lấp đầy trước (kết quả tất định,
-     * và Groom quen nhịp vì ngựa vào hệ thống sớm luôn đi lot sớm).
+     * BƯỚC 1 của thuật toán: các lot cùng Trainer, cùng ngày, CÙNG BÀI TẬP, giờ sớm trước.
+     * (STEP 1 of the algorithm: lots of the same trainer, day and SUBJECT, earliest first.)
      */
     @Query("""
            SELECT l FROM TrainingLot l
@@ -49,65 +54,106 @@ public interface TrainingLotRepository extends JpaRepository<TrainingLot, Long> 
                                                    @Param("subjectId") Long subjectId);
 
     // =================================================================
-    // API XEM LỊCH (khác hẳn query dùng cho thuật toán xếp khe)
+    // API XEM LỊCH: trả thẳng DTO, số ngựa đếm bằng sub-query
+    // (SCHEDULE API — returns DTO rows directly, horse count computed by a sub-query)
     // =================================================================
 
+    /** Phần SELECT dùng chung cho mọi truy vấn xem lot. (SELECT part shared by every lot view query.) */
+    String LOT_ROW_SELECT = """
+            SELECT new com.rtms.backend.training.dto.TrainingLotRow(
+                       l.id, l.trainerId, l.lotDate, l.startTime, l.endTime, l.subjectId, s.name,
+                       s.durationMinutes, l.status, l.maxCapacity,
+                       (SELECT COUNT(w) FROM TrainingWorkout w
+                        WHERE w.lotId = l.id
+                          AND w.status <> com.rtms.backend.training.enums.WorkoutStatus.CANCELLED))
+            FROM TrainingLot l
+            JOIN Subject s ON l.subjectId = s.id
+            """;
+
     /**
-     * Lịch lot của Trainer — BẢN LỌC, ẩn lot đã huỷ.
-     *
-     * Vì sao phải có: thuật toán xếp khe (findActiveLotsOfDay) vốn đã bỏ qua
-     * lot CANCELLED, nghĩa là khe giờ của nó thực tế đang TRỐNG. Nếu API xem
-     * lịch vẫn trả lot đó về, Trainer thấy một khối nằm chình ình trong
-     * timeline và tưởng khe đã bận — đúng ngược mục đích của API. Tệ hơn: khi
-     * một lot mới đã được đặt đè lên khoảng đó, response trả về hai lot chồng
-     * giờ, nhìn như BR-02 bị vi phạm dù không hề.
+     * Lịch lot của Trainer. includeCancelled = false thì ẩn lot đã hủy, vì khe giờ của nó thực tế đang TRỐNG.
+     * (A trainer lot schedule. With includeCancelled = false cancelled lots are hidden, because
+     * their slot is actually FREE.)
      */
-    @Query("""
-           SELECT l FROM TrainingLot l
-           WHERE l.trainerId = :trainerId
-             AND l.lotDate BETWEEN :from AND :to
-             AND l.status <> com.rtms.backend.training.enums.LotStatus.CANCELLED
-           ORDER BY l.lotDate ASC, l.startTime ASC
-           """)
-    List<TrainingLot> findActiveLotsInRange(@Param("trainerId") Long trainerId,
+    @Query(LOT_ROW_SELECT + """
+            WHERE l.trainerId = :trainerId
+              AND l.lotDate BETWEEN :from AND :to
+              AND (:includeCancelled = true
+                   OR l.status <> com.rtms.backend.training.enums.LotStatus.CANCELLED)
+            ORDER BY l.lotDate ASC, l.startTime ASC
+            """)
+    List<TrainingLotRow> findTrainerLotRows(@Param("trainerId") Long trainerId,
                                             @Param("from") LocalDate from,
-                                            @Param("to") LocalDate to);
+                                            @Param("to") LocalDate to,
+                                            @Param("includeCancelled") boolean includeCancelled);
 
     /**
-     * Lịch lot của một GROOM: các lot mà groom này có ngựa phải dắt.
-     *
-     * KHÔNG dùng lại được query của Trainer, vì quan hệ sở hữu khác nhau:
-     *   - Trainer SỞ HỮU lot        -> lọc thẳng l.trainerId
-     *   - Groom KHÔNG sở hữu lot nào, chỉ CÓ MẶT trong đó
-     *         -> bắt buộc JOIN qua training_workouts.assigned_to_id
-     * Tra theo trainerId cho Groom sẽ luôn trả rỗng.
-     *
-     * Vì sao DISTINCT: BR-09 đã cấm một Groom có hai ngựa CÒN HIỆU LỰC trong
-     * cùng một lot, nhưng một buổi đã huỷ cộng một buổi mới vẫn có thể cùng
-     * trỏ về một lot. DISTINCT chặn dòng lặp ở trường hợp đó.
-     *
-     * Lọc hai tầng là cố ý:
-     *   l.status  -> cả lot bị huỷ (trời mưa)
-     *   w.status  -> chỉ buổi của con ngựa này bị huỷ (nó chấn thương),
-     *                lot vẫn chạy với những con khác — khi đó Groom không
-     *                còn việc gì ở lot đó nữa nên không được hiện ra.
+     * Lịch lot của một GROOM: các lot mà groom này có ngựa phải dắt. Groom không sở hữu lot nào nên phải đi
+     * vòng qua workout.assigned_to_id; EXISTS tránh dòng lặp mà không cần DISTINCT.
+     * (A GROOM lot schedule: lots where this groom has a horse to lead. A groom owns no lot, so the query
+     * goes through workout.assigned_to_id; EXISTS avoids duplicate rows without DISTINCT.)
+     */
+    @Query(LOT_ROW_SELECT + """
+            WHERE l.lotDate BETWEEN :from AND :to
+              AND l.status <> com.rtms.backend.training.enums.LotStatus.CANCELLED
+              AND EXISTS (SELECT 1 FROM TrainingWorkout gw
+                          WHERE gw.lotId = l.id
+                            AND gw.assignedToId = :groomId
+                            AND gw.status <> com.rtms.backend.training.enums.WorkoutStatus.CANCELLED)
+            ORDER BY l.lotDate ASC, l.startTime ASC
+            """)
+    List<TrainingLotRow> findGroomLotRows(@Param("groomId") Long groomId,
+                                          @Param("from") LocalDate from,
+                                          @Param("to") LocalDate to);
+
+    /**
+     * Lịch lot của một OWNER: các lot có ít nhất một con ngựa CỦA OWNER ĐÓ còn hiệu lực.
+     * (An OWNER lot schedule: lots with at least one active horse BELONGING TO THAT OWNER.)
+     */
+    @Query(LOT_ROW_SELECT + """
+            WHERE l.lotDate BETWEEN :from AND :to
+              AND l.status <> com.rtms.backend.training.enums.LotStatus.CANCELLED
+              AND EXISTS (SELECT 1 FROM TrainingWorkout ow
+                          JOIN Horse oh ON ow.horseId = oh.id
+                          WHERE ow.lotId = l.id
+                            AND oh.ownerId = :ownerId
+                            AND ow.status <> com.rtms.backend.training.enums.WorkoutStatus.CANCELLED)
+            ORDER BY l.lotDate ASC, l.startTime ASC
+            """)
+    List<TrainingLotRow> findOwnerLotRows(@Param("ownerId") Long ownerId,
+                                          @Param("from") LocalDate from,
+                                          @Param("to") LocalDate to);
+
+    @Query(LOT_ROW_SELECT + " WHERE l.id = :lotId")
+    Optional<TrainingLotRow> findLotRowById(@Param("lotId") Long lotId);
+
+    /**
+     * Tên các ngựa còn hiệu lực trong NHIỀU lot bằng MỘT truy vấn (thay cho findAllById trong vòng lặp).
+     * (Names of active horses in MANY lots with ONE query, replacing findAllById inside a loop.)
      */
     @Query("""
-           SELECT DISTINCT l FROM TrainingLot l
-           JOIN TrainingWorkout w ON w.lotId = l.id
-           WHERE w.assignedToId = :groomId
-             AND l.lotDate BETWEEN :from AND :to
-             AND l.status <> com.rtms.backend.training.enums.LotStatus.CANCELLED
+           SELECT new com.rtms.backend.training.dto.LotHorseNameRow(w.lotId, h.name)
+           FROM TrainingWorkout w
+           JOIN Horse h ON w.horseId = h.id
+           WHERE w.lotId IN :lotIds
              AND w.status <> com.rtms.backend.training.enums.WorkoutStatus.CANCELLED
-           ORDER BY l.lotDate ASC, l.startTime ASC
+           ORDER BY w.lotId ASC, w.id ASC
            """)
-    List<TrainingLot> findActiveGroomLotsInRange(@Param("groomId") Long groomId,
-                                                 @Param("from") LocalDate from,
-                                                 @Param("to") LocalDate to);
+    List<LotHorseNameRow> findActiveHorseNames(@Param("lotIds") Collection<Long> lotIds);
 
-    /** API xem lịch lot theo tuần. */
-    List<TrainingLot> findByTrainerIdAndLotDateBetweenOrderByLotDateAscStartTimeAsc(
-            Long trainerId, LocalDate from, LocalDate to);
-
-    List<TrainingLot> findByLotDateOrderByStartTimeAsc(LocalDate date);
+    /**
+     * Như trên nhưng chỉ ngựa của một owner, để owner không thấy tên ngựa của chủ khác trong cùng lot.
+     * (Same as above but only one owner horses, so an owner never sees the names of other owners horses.)
+     */
+    @Query("""
+           SELECT new com.rtms.backend.training.dto.LotHorseNameRow(w.lotId, h.name)
+           FROM TrainingWorkout w
+           JOIN Horse h ON w.horseId = h.id
+           WHERE w.lotId IN :lotIds
+             AND h.ownerId = :ownerId
+             AND w.status <> com.rtms.backend.training.enums.WorkoutStatus.CANCELLED
+           ORDER BY w.lotId ASC, w.id ASC
+           """)
+    List<LotHorseNameRow> findActiveHorseNamesOfOwner(@Param("lotIds") Collection<Long> lotIds,
+                                                      @Param("ownerId") Long ownerId);
 }

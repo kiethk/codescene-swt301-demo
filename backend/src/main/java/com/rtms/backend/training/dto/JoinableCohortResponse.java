@@ -7,9 +7,12 @@ import java.util.Set;
 
 /**
  * Gợi ý nhóm để ghi danh chung, giúp tiết kiệm khe giờ vàng.
+ * (A cohort suggestion to enroll together, saving golden-window slots.)
  *
  * Hệ thống chỉ GỢI Ý, không ép. Trainer nhìn waitDays (ngựa phải nằm không
  * bao lâu) đối chiếu sharedSessions (được chung bao nhiêu buổi) rồi tự quyết.
+ * (The system only SUGGESTS, it never forces. The trainer compares waitDays (how long the horse must sit idle) with sharedSessions
+ *  (how many sessions can be shared) and decides.)
  */
 public class JoinableCohortResponse {
 
@@ -22,6 +25,8 @@ public class JoinableCohortResponse {
      *  - Nhóm UPCOMING: chính là startDate của nhóm -> đồng bộ TRỌN khoá.
      *  - Nhóm ACTIVE:   ngày gần nhất nhóm quay về bài đầu khoá (i % n == 0)
      *                   -> đồng bộ từ đó tới hết khoá của nhóm.
+     * (The date the new horse should start. UPCOMING cohort: the cohort startDate -> in sync for the WHOLE course.
+     *  ACTIVE cohort: the nearest date the cohort returns to the first subject (i % n == 0) -> in sync from then to the end of the cohort course.)
      */
     private LocalDate suggestedStartDate;
 
@@ -34,15 +39,20 @@ public class JoinableCohortResponse {
      * KHÔNG phải "số buổi chung lot". Đồng pha là ĐIỀU KIỆN CẦN để chung lot,
      * không phải bảo đảm: nhóm vẫn bị tách sang lot thứ hai nếu vượt sức chứa
      * (BR-10), hoặc nếu hai con cùng một Groom (BR-09).
+     * (Number of IN-PHASE sessions: same day, same subject. NOT "the number of sessions in the same lot". Being in phase is a NECESSARY
+     *  condition for sharing a lot, not a guarantee: the group still splits into a second lot when it exceeds capacity (BR-10) or when
+     *  two horses share one groom (BR-09).)
      */
     private Integer sharedSessions;
 
     private Integer totalSessions;
-    private Long waitDays;                // số ngày phải chờ tính từ hôm nay
+    private Long waitDays;                // số ngày phải chờ tính từ hôm nay (days to wait counted from today)
 
     /**
      * Sức chứa một lot, để giao diện tự cảnh báo khi nhóm sắp tràn.
      * Trả từ backend thay vì để frontend hardcode số 6.
+     * (Capacity of one lot, so the UI can warn when a cohort is about to overflow. Returned by the backend instead of the
+     *  frontend hardcoding the number 6.)
      */
     private Integer lotCapacity;
 

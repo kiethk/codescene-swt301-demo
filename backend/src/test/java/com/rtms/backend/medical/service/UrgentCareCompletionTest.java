@@ -21,7 +21,7 @@ import com.rtms.backend.stable.enums.IncidentStatus;
 import com.rtms.backend.stable.repository.GroomIncidentReportRepository;
 import com.rtms.backend.stable.repository.StableStallRepository;
 import com.rtms.backend.training.enums.TrainingDecision;
-import com.rtms.backend.training.service.HorseTrainingPlanService;
+import com.rtms.backend.training.service.TrainingWorkoutService;
 import com.rtms.backend.training.service.TrainingDecisionService;
 
 
@@ -63,7 +63,7 @@ class UrgentCareCompletionTest {
     @Mock private ApplicationEventPublisher eventPublisher;
     @Mock private EntityManager entityManager;
     @Mock private NotificationService notificationService;
-    @Mock private HorseTrainingPlanService trainingPlanService;
+    @Mock private TrainingWorkoutService workoutService;
 
     private CareScheduleService careScheduleService;
 
@@ -80,7 +80,7 @@ class UrgentCareCompletionTest {
                 admissionRepository, stallRepository, userRepository, incidentReportRepository,
                 veterinarianProfileRepository, auditLogRepository, eventPublisher, entityManager,
                 notificationService,
-                new TrainingDecisionService(horseRepository, careScheduleRepository, trainingPlanService));
+                new TrainingDecisionService(horseRepository, careScheduleRepository, workoutService));
 
         horse = new Horse();
         horse.setId(10L);
@@ -121,7 +121,7 @@ class UrgentCareCompletionTest {
         assertEquals(TrainingDecision.BLOCKED, horse.getTrainingDecision());
         assertEquals("Urgent veterinary care pending", horse.getTrainingDecisionReason());
         assertFalse(horse.canTrain());
-        verify(trainingPlanService).cancelFutureTrainingForHorse(eq(10L), anyString());
+        verify(workoutService).cancelFutureTrainingForHorse(eq(10L), anyString());
     }
 
     @Test
@@ -158,7 +158,7 @@ class UrgentCareCompletionTest {
         assertTrue(horse.canTrain());
         assertEquals(IncidentStatus.RESOLVED, incident.getStatus());
         verify(healthRecordRepository).save(any(HealthRecord.class));
-        verify(trainingPlanService, never()).cancelFutureTrainingForHorse(anyLong(), anyString());
+        verify(workoutService, never()).cancelFutureTrainingForHorse(anyLong(), anyString());
     }
 
     @Test
@@ -172,7 +172,7 @@ class UrgentCareCompletionTest {
 
         assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
         assertEquals("FOLLOW_UP_REQUIRED", ex.getErrorCode());
-        verifyNoInteractions(healthRecordRepository, trainingPlanService);
+        verifyNoInteractions(healthRecordRepository, workoutService);
     }
 
     @Test
@@ -197,7 +197,7 @@ class UrgentCareCompletionTest {
 
         assertEquals(TrainingDecision.BLOCKED, horse.getTrainingDecision());
         assertEquals("Walk only for 5 days", horse.getTrainingDecisionReason());
-        verify(trainingPlanService).cancelFutureTrainingForHorse(eq(10L), contains("Walk only for 5 days"));
+        verify(workoutService).cancelFutureTrainingForHorse(eq(10L), contains("Walk only for 5 days"));
 
         ArgumentCaptor<CareSchedule> followUp = ArgumentCaptor.forClass(CareSchedule.class);
         verify(careScheduleRepository).saveAndFlush(followUp.capture());

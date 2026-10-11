@@ -15,7 +15,7 @@ import com.rtms.backend.notification.repository.NotificationRepository;
 import com.rtms.backend.notification.service.NotificationService;
 import com.rtms.backend.stable.repository.GroomIncidentReportRepository;
 import com.rtms.backend.stable.repository.StableStallRepository;
-import com.rtms.backend.training.service.HorseTrainingPlanService;
+import com.rtms.backend.training.service.TrainingWorkoutService;
 import com.rtms.backend.training.service.TrainingDecisionService;
 
 
@@ -82,7 +82,7 @@ class AssignmentEnforcementTest {
     private NotificationRepository notificationRepository;
 
     @Mock
-    private HorseTrainingPlanService trainingPlanService;
+    private TrainingWorkoutService workoutService;
 
     private CareScheduleService careScheduleService;
     private NotificationService notificationService;
@@ -105,7 +105,7 @@ class AssignmentEnforcementTest {
                 eventPublisher,
                 entityManager,
                 notificationService,
-                new TrainingDecisionService(horseRepository, careScheduleRepository, trainingPlanService)
+                new TrainingDecisionService(horseRepository, careScheduleRepository, workoutService)
         );
     }
 

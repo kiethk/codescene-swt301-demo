@@ -20,6 +20,7 @@ public class TrainingWorkout {
      * Lot mà chiến mã này tham gia.
      * Ngày, giờ bắt đầu/kết thúc và bài tập đều lấy từ lot — workout không
      * còn giữ bản sao nào của chúng nữa.
+     * (The lot this horse takes part in. The date, start/end time and subject all come from the lot: the workout no longer keeps any copy of them.)
      */
     @Column(name = "lot_id", nullable = false)
     private Long lotId;

@@ -10,10 +10,13 @@ import java.time.LocalTime;
 /**
  * Một LOT = một nhóm chiến mã cùng ra sân chạy CÙNG MỘT BÀI, cùng khung giờ,
  * dưới sự quan sát của một Trainer.
+ * (A LOT = a group of horses going out to run the SAME SUBJECT in the same time slot, under one trainer.)
  *
  * Vì subject_id nằm ở đây (không nằm ở workout), quy tắc "ngựa chung lot phải
  * chung bài" trở thành ĐÚNG THEO CẤU TRÚC — không có cách nào biểu diễn
  * trạng thái sai, nên không cần validation.
+ * (Because subject_id lives here (not on the workout), the rule "horses sharing a lot must share the subject" is TRUE BY STRUCTURE:
+ *  a wrong state cannot even be represented, so no validation is needed.)
  */
 @Entity
 @Table(name = "training_lots")

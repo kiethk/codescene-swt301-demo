@@ -1,58 +1,42 @@
 package com.rtms.backend.training.controller;
 
 import com.rtms.backend.common.dto.ApiResponse;
+import com.rtms.backend.security.AuthenticatedUser;
 import com.rtms.backend.training.dto.RescheduleLotRequest;
 import com.rtms.backend.training.dto.TrainingLotResponse;
-import com.rtms.backend.horse.entity.Horse;
-import com.rtms.backend.training.entity.Subject;
-import com.rtms.backend.training.entity.TrainingLot;
-import com.rtms.backend.training.entity.TrainingWorkout;
-import com.rtms.backend.training.enums.WorkoutStatus;
-import com.rtms.backend.horse.repository.HorseRepository;
-import com.rtms.backend.training.repository.SubjectRepository;
-import com.rtms.backend.training.repository.TrainingWorkoutRepository;
-import com.rtms.backend.security.AuthenticatedUser;
 import com.rtms.backend.training.service.TrainingLotService;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
+/**
+ * Controller chỉ nhận request và gọi service; mọi logic phân quyền theo vai trò nằm ở TrainingLotService.
+ * (The controller only receives requests and calls the service; all role-based logic lives in TrainingLotService.)
+ */
 @RestController
 @RequestMapping("/api/lots")
 public class TrainingLotController {
 
     private final TrainingLotService lotService;
-    private final TrainingWorkoutRepository workoutRepository;
-    private final SubjectRepository subjectRepository;
-    private final HorseRepository horseRepository;
 
-    public TrainingLotController(TrainingLotService lotService,
-                                 TrainingWorkoutRepository workoutRepository,
-                                 SubjectRepository subjectRepository,
-                                 HorseRepository horseRepository) {
+    public TrainingLotController(TrainingLotService lotService) {
         this.lotService = lotService;
-        this.workoutRepository = workoutRepository;
-        this.subjectRepository = subjectRepository;
-        this.horseRepository = horseRepository;
     }
 
     /**
-     * Xem lịch lot theo khoảng ngày.
-     *
-     * Mỗi vai trò có một nghĩa "lịch của tôi" khác nhau, nên phải rẽ nhánh
-     * chứ không thể dùng chung một biểu thức target:
-     *
-     *   HEAD_TRAINER : các lot MÌNH ĐỨNG DẠY   -> lọc lots.trainer_id
-     *   GROOM        : các lot MÌNH CÓ NGỰA     -> JOIN workouts.assigned_to_id
-     *   CLUB_MANAGER
-     *   HORSE_OWNER  : phải chỉ rõ xem lịch của Trainer nào
+     * Xem lịch lot theo khoảng ngày; "lịch của tôi" có nghĩa khác nhau theo vai trò (xem TrainingLotService.getLots).
+     * (Views the lot schedule over a date range; "my schedule" means different things per role, see
+     * TrainingLotService.getLots.)
      */
     @GetMapping
     @PreAuthorize("hasAuthority('TRAINING_LOT_VIEW')")
@@ -62,98 +46,34 @@ public class TrainingLotController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(required = false, defaultValue = "false") boolean includeCancelled,
             @AuthenticationPrincipal AuthenticatedUser currentUser) {
-
-        if (from.isAfter(to)) {
-            throw new IllegalArgumentException(
-                    "Khoảng ngày không hợp lệ: 'from' (" + from + ") sau 'to' (" + to + ")!");
-        }
-
-        String role = currentUser.getRole();
-        List<TrainingLot> lots;
-
-        if ("HEAD_TRAINER".equalsIgnoreCase(role)) {
-            // LUÔN dùng id của chính mình, kể cả khi client truyền trainerId
-            // của người khác — Trainer không xem trộm lịch đồng nghiệp.
-            lots = lotService.getLots(currentUser.getUserId(), from, to, includeCancelled);
-
-        } else if ("GROOM".equalsIgnoreCase(role)) {
-            // Groom KHÔNG sở hữu lot nào nên tra theo trainer_id sẽ luôn rỗng.
-            // Phải đi vòng qua workout.assignedToId.
-            lots = lotService.getGroomLots(currentUser.getUserId(), from, to);
-
-        } else {
-            // CLUB_MANAGER / HORSE_OWNER
-            if (trainerId == null) {
-                throw new IllegalArgumentException(
-                        "Thiếu tham số 'trainerId' — hãy chỉ rõ bạn muốn xem lịch lot "
-                      + "của Trainer nào!");
-            }
-            lots = lotService.getLots(trainerId, from, to, includeCancelled);
-        }
-
-        List<TrainingLotResponse> result = new ArrayList<>();
-        for (TrainingLot lot : lots) {
-            result.add(toResponse(lot));
-        }
-        return ApiResponse.success(result);
+        return ApiResponse.success(lotService.getLots(currentUser, trainerId, from, to, includeCancelled));
     }
 
     @GetMapping("/{id}")
     @PreAuthorize("hasAuthority('TRAINING_LOT_VIEW')")
-    public ApiResponse<TrainingLotResponse> getLotById(@PathVariable Long id) {
-        TrainingLot lot = lotService.findLotById(id);
-        return ApiResponse.success(toResponse(lot));
+    public ApiResponse<TrainingLotResponse> getLotById(
+            @PathVariable Long id,
+            @AuthenticationPrincipal AuthenticatedUser currentUser) {
+        return ApiResponse.success(lotService.getLot(id, currentUser));
     }
 
-    /** Dời giờ lot — cả hàng ngựa trong lot dời theo. */
+    /** Dời giờ lot: cả hàng ngựa trong lot dời theo. (Reschedules a lot: all horses in it move too.) */
     @PatchMapping("/{id}/reschedule")
     @PreAuthorize("hasAuthority('TRAINING_LOT_UPDATE')")
     public ApiResponse<TrainingLotResponse> reschedule(
             @PathVariable Long id,
             @RequestBody RescheduleLotRequest request,
             @AuthenticationPrincipal AuthenticatedUser currentUser) {
-        TrainingLot lot = lotService.rescheduleLot(id, request.getNewStartTime(), currentUser.getUserId());
-        return ApiResponse.success(toResponse(lot));
+        return ApiResponse.success(
+                lotService.rescheduleLot(id, request.getNewStartTime(), currentUser.getUserId()));
     }
 
-    /** Huỷ lot và mọi buổi tập SCHEDULED bên trong. */
+    /** Hủy lot và mọi buổi tập SCHEDULED bên trong. (Cancels a lot and every SCHEDULED workout inside.) */
     @PatchMapping("/{id}/cancel")
     @PreAuthorize("hasAuthority('TRAINING_LOT_UPDATE')")
     public ApiResponse<TrainingLotResponse> cancel(
             @PathVariable Long id,
             @AuthenticationPrincipal AuthenticatedUser currentUser) {
-        TrainingLot lot = lotService.cancelLot(id, currentUser.getUserId());
-        return ApiResponse.success(toResponse(lot));
-    }
-
-    private TrainingLotResponse toResponse(TrainingLot lot) {
-        Subject subject = subjectRepository.findById(lot.getSubjectId()).orElse(null);
-
-        // CHỈ lấy buổi còn hiệu lực. Nếu lấy cả buổi đã huỷ thì response tự mâu
-        // thuẫn: occupied đếm loại CANCELLED còn horseNames thì không.
-        List<TrainingWorkout> workouts = workoutRepository.findByLotIdAndStatusNot(lot.getId(), WorkoutStatus.CANCELLED);
-
-        // Nạp tên ngựa MỘT LẦN thay vì findById trong vòng lặp (bỏ N+1)
-        List<Long> horseIds = workouts.stream()
-                .map(TrainingWorkout::getHorseId)
-                .toList();
-        Map<Long, String> nameById = new HashMap<>();
-        if (!horseIds.isEmpty()) {
-            horseRepository.findAllById(horseIds)
-                    .forEach(h -> nameById.put(h.getId(), h.getName()));
-        }
-
-        List<String> horseNames = horseIds.stream()
-                .map(id -> nameById.getOrDefault(id, "#" + id))
-                .toList();
-
-        return new TrainingLotResponse(
-                lot,
-                subject != null ? subject.getName() : "#" + lot.getSubjectId(),
-                subject != null ? subject.getDurationMinutes() : null,
-                // Lấy thẳng size() của CHÍNH danh sách vừa dựng horseNames.
-                // Hai trường giờ đến từ một nguồn -> KHÔNG THỂ lệch nhau nữa.
-                workouts.size(),
-                horseNames);
+        return ApiResponse.success(lotService.cancelLot(id, currentUser.getUserId()));
     }
 }

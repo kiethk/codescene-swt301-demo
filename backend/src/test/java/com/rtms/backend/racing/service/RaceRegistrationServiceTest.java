@@ -69,7 +69,7 @@ class RaceRegistrationServiceTest {
     private Horse createEligibleHorse(Long id, Long stallId) {
         Horse h = new Horse();
         h.setId(id);
-        h.setName("Bạch Long Mã");
+        h.setName("White Dragon Horse");
         h.setRegistrationNumber("VN-2026-001");
         h.setCurrentStatus(HorseStatus.ELIGIBLE);
         h.setCurrentStallId(stallId);
@@ -79,24 +79,24 @@ class RaceRegistrationServiceTest {
     private CreateRaceRegistrationRequest createValidRequest(Long horseId) {
         CreateRaceRegistrationRequest req = new CreateRaceRegistrationRequest();
         req.setHorseId(horseId);
-        req.setRaceName("Giải Mùa Thu 2026");
-        req.setRaceCategory("Hạng 3 tuổi - 1.200 m");
-        req.setLocation("Trường đua A, Hà Nội");
+        req.setRaceName("Autumn Cup 2026");
+        req.setRaceCategory("3-year-olds - 1,200 m");
+        req.setLocation("Track A, Hanoi");
         req.setEventDate(LocalDate.now().plusDays(30));
         req.setEventTime(LocalTime.of(8, 30));
-        req.setOrganizer("Câu lạc bộ A");
+        req.setOrganizer("Club A");
         req.setSourceUrl("https://example.org/race-conditions");
         req.setNominationDeadline(LocalDate.now().plusDays(15));
         req.setDistanceMeters(new BigDecimal("1200"));
-        req.setTrackType("Cỏ");
-        req.setPrizeDetails("Nhất 50 triệu VND; nhì 25 triệu VND");
-        req.setSelectionReason("Ngựa có kết quả tốt ở cự ly 1.200 m và đang tập ổn định.");
-        req.setTrainerNotes("Cần xác minh điều kiện tuổi với ban tổ chức.");
+        req.setTrackType("Turf");
+        req.setPrizeDetails("1st 50 million VND; 2nd 25 million VND");
+        req.setSelectionReason("The horse performs well over 1,200 m and trains steadily.");
+        req.setTrainerNotes("Age eligibility must be confirmed with the organizer.");
         return req;
     }
 
     @Test
-    @DisplayName("Nộp đơn hợp lệ -> Tạo bản ghi PENDING với trainerId của phiên đăng nhập")
+    @DisplayName("A valid submission creates a PENDING record with the logged-in trainer id")
     void testCreate_Valid_Success() {
         Long horseId = 42L;
         Long stallId = 5L;
@@ -109,7 +109,7 @@ class RaceRegistrationServiceTest {
 
         Area area = new Area();
         area.setId(areaId);
-        area.setTrainerId(10L); // Khớp trainerId của trainerUser
+        area.setTrainerId(10L); // Khớp trainerId của trainerUser (matches the trainerUser id)
 
         when(horseRepository.findById(horseId)).thenReturn(Optional.of(horse));
         when(stableStallRepository.findById(stallId)).thenReturn(Optional.of(stall));
@@ -127,16 +127,16 @@ class RaceRegistrationServiceTest {
         assertEquals(100L, res.getId());
         assertEquals("PENDING", res.getStatus());
         assertEquals(10L, res.getTrainerId());
-        assertEquals("Bạch Long Mã", res.getHorseName());
+        assertEquals("White Dragon Horse", res.getHorseName());
         assertEquals("VN-2026-001", res.getHorseRegistrationNumber());
-        assertEquals("Giải Mùa Thu 2026", res.getRaceName());
-        assertEquals("Hạng 3 tuổi - 1.200 m", res.getRaceCategory());
+        assertEquals("Autumn Cup 2026", res.getRaceName());
+        assertEquals("3-year-olds - 1,200 m", res.getRaceCategory());
         assertEquals("https://example.org/race-conditions", res.getSourceUrl());
         verify(raceRegistrationRepository).save(any(RaceRegistration.class));
     }
 
     @Test
-    @DisplayName("Nộp đơn cho ngựa không tồn tại -> 404 RESOURCE_NOT_FOUND")
+    @DisplayName("Submitting for a horse that does not exist -> 404 RESOURCE_NOT_FOUND")
     void testCreate_HorseNotFound_ThrowsException() {
         when(horseRepository.findById(999L)).thenReturn(Optional.empty());
 
@@ -148,7 +148,7 @@ class RaceRegistrationServiceTest {
     }
 
     @Test
-    @DisplayName("Nộp đơn cho ngựa chưa xếp chuồng -> 400 HORSE_NOT_ASSIGNED")
+    @DisplayName("Submitting for a horse without a stall -> 400 HORSE_NOT_ASSIGNED")
     void testCreate_HorseNotAssignedStall_ThrowsException() {
         Horse horse = createEligibleHorse(42L, null);
         when(horseRepository.findById(42L)).thenReturn(Optional.of(horse));
@@ -161,7 +161,7 @@ class RaceRegistrationServiceTest {
     }
 
     @Test
-    @DisplayName("Nộp đơn cho ngựa thuộc khu Trainer khác -> 403 AccessDeniedException")
+    @DisplayName("Submitting for a horse in another trainer area -> 403 AccessDeniedException")
     void testCreate_HorseInOtherTrainerArea_ThrowsAccessDenied() {
         Long horseId = 42L;
         Long stallId = 5L;
@@ -174,7 +174,7 @@ class RaceRegistrationServiceTest {
 
         Area area = new Area();
         area.setId(areaId);
-        area.setTrainerId(888L); // Thuộc Trainer khác
+        area.setTrainerId(888L); // Thuộc Trainer khác (belongs to another trainer)
 
         when(horseRepository.findById(horseId)).thenReturn(Optional.of(horse));
         when(stableStallRepository.findById(stallId)).thenReturn(Optional.of(stall));
@@ -185,14 +185,14 @@ class RaceRegistrationServiceTest {
     }
 
     @Test
-    @DisplayName("Nộp đơn cho ngựa bị khoá huấn luyện hoặc không ELIGIBLE -> 400 HORSE_NOT_ELIGIBLE")
+    @DisplayName("Submitting for a blocked or non-ELIGIBLE horse -> 400 HORSE_NOT_ELIGIBLE")
     void testCreate_HorseLockedOrNotEligible_ThrowsException() {
         Long horseId = 42L;
         Long stallId = 5L;
         Long areaId = 2L;
 
         Horse horse = createEligibleHorse(horseId, stallId);
-        horse.setTrainingDecision(com.rtms.backend.training.enums.TrainingDecision.BLOCKED); // Thú y chặn tập
+        horse.setTrainingDecision(com.rtms.backend.training.enums.TrainingDecision.BLOCKED); // Thú y chặn tập (blocked by the vet)
 
         StableStall stall = new StableStall();
         stall.setId(stallId);
@@ -214,7 +214,7 @@ class RaceRegistrationServiceTest {
     }
 
     @Test
-    @DisplayName("Nộp đơn với ngày thi đấu trong quá khứ -> 400 INVALID_EVENT_DATE")
+    @DisplayName("Submitting with a race date in the past -> 400 INVALID_EVENT_DATE")
     void testCreate_PastEventDate_ThrowsException() {
         Long horseId = 42L;
         Long stallId = 5L;
@@ -234,7 +234,7 @@ class RaceRegistrationServiceTest {
         when(areaRepository.findById(areaId)).thenReturn(Optional.of(area));
 
         CreateRaceRegistrationRequest req = createValidRequest(horseId);
-        req.setEventDate(LocalDate.now().minusDays(1)); // Quá khứ
+        req.setEventDate(LocalDate.now().minusDays(1)); // Quá khứ (in the past)
 
         ApiException ex = assertThrows(ApiException.class, () -> raceRegistrationService.create(req, trainerUser));
         assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
@@ -242,7 +242,7 @@ class RaceRegistrationServiceTest {
     }
 
     @Test
-    @DisplayName("Hạn nộp hồ sơ sau ngày thi đấu -> 400 INVALID_DEADLINE")
+    @DisplayName("Registration deadline after the race date -> 400 INVALID_DEADLINE")
     void testCreate_DeadlineAfterEventDate_ThrowsException() {
         Long horseId = 42L;
         Long stallId = 5L;
@@ -263,7 +263,7 @@ class RaceRegistrationServiceTest {
 
         CreateRaceRegistrationRequest req = createValidRequest(horseId);
         req.setEventDate(LocalDate.now().plusDays(10));
-        req.setNominationDeadline(LocalDate.now().plusDays(15)); // Sau ngày thi
+        req.setNominationDeadline(LocalDate.now().plusDays(15)); // Sau ngày thi (after the race date)
 
         ApiException ex = assertThrows(ApiException.class, () -> raceRegistrationService.create(req, trainerUser));
         assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
@@ -271,7 +271,7 @@ class RaceRegistrationServiceTest {
     }
 
     @Test
-    @DisplayName("Link nguồn không phải http/https -> 400 INVALID_SOURCE_URL")
+    @DisplayName("Source link that is not http/https -> 400 INVALID_SOURCE_URL")
     void testCreate_InvalidSourceUrl_ThrowsException() {
         Long horseId = 42L;
         Long stallId = 5L;
@@ -299,7 +299,7 @@ class RaceRegistrationServiceTest {
     }
 
     @Test
-    @DisplayName("listVisible: Trainer chỉ thấy đơn do chính mình tạo")
+    @DisplayName("listVisible: a trainer only sees nominations they created")
     void testListVisible_Trainer_OnlySeesOwnProposals() {
         RaceRegistration reg = new RaceRegistration();
         reg.setId(1L);
@@ -320,7 +320,7 @@ class RaceRegistrationServiceTest {
     }
 
     @Test
-    @DisplayName("listVisible: Manager thấy tất cả đơn")
+    @DisplayName("listVisible: a manager sees every nomination")
     void testListVisible_Manager_SeesAllProposals() {
         RaceRegistration reg1 = new RaceRegistration();
         reg1.setId(1L);
@@ -344,11 +344,11 @@ class RaceRegistrationServiceTest {
     }
 
     @Test
-    @DisplayName("getVisible: Trainer xem đơn của Trainer khác -> 403 AccessDeniedException")
+    @DisplayName("getVisible: a trainer opening another trainer nomination -> 403 AccessDeniedException")
     void testGetVisible_OtherTrainerProposal_ThrowsAccessDenied() {
         RaceRegistration reg = new RaceRegistration();
         reg.setId(50L);
-        reg.setTrainerId(99L); // Của trainer khác
+        reg.setTrainerId(99L); // Của trainer khác (another trainer)
         reg.setHorseId(42L);
 
         when(raceRegistrationRepository.findById(50L)).thenReturn(Optional.of(reg));
@@ -357,7 +357,7 @@ class RaceRegistrationServiceTest {
     }
 
     @Test
-    @DisplayName("getVisible: Manager có thể xem đơn của bất kỳ Trainer nào")
+    @DisplayName("getVisible: a manager can open any trainer nomination")
     void testGetVisible_Manager_CanViewAnyProposal() {
         RaceRegistration reg = new RaceRegistration();
         reg.setId(50L);
@@ -373,7 +373,7 @@ class RaceRegistrationServiceTest {
     }
 
     @Test
-    @DisplayName("review: Manager duyệt đơn PENDING -> Thành APPROVED với feedback")
+    @DisplayName("review: a manager approves a PENDING nomination -> APPROVED with feedback")
     void testReview_Manager_Success() {
         RaceRegistration reg = new RaceRegistration();
         reg.setId(50L);
@@ -387,12 +387,12 @@ class RaceRegistrationServiceTest {
 
         ReviewRaceRegistrationRequest req = new ReviewRaceRegistrationRequest();
         req.setStatus("APPROVED");
-        req.setManagerFeedback("Đã duyệt cho chiến mã tham gia.");
+        req.setManagerFeedback("Approved for the horse to take part.");
 
         RaceRegistrationResponse res = raceRegistrationService.review(50L, req, managerUser);
 
         assertEquals("APPROVED", res.getStatus());
-        assertEquals("Đã duyệt cho chiến mã tham gia.", res.getManagerFeedback());
+        assertEquals("Approved for the horse to take part.", res.getManagerFeedback());
         assertEquals(1L, res.getReviewedById());
         assertNotNull(res.getReviewedAt());
     }

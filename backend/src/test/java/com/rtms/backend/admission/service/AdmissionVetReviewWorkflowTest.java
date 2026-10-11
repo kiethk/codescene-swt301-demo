@@ -29,7 +29,7 @@ import com.rtms.backend.notification.service.NotificationService;
 import com.rtms.backend.stable.repository.GroomIncidentReportRepository;
 import com.rtms.backend.stable.repository.StableStallRepository;
 import com.rtms.backend.training.enums.TrainingDecision;
-import com.rtms.backend.training.service.HorseTrainingPlanService;
+import com.rtms.backend.training.service.TrainingWorkoutService;
 import com.rtms.backend.training.service.TrainingDecisionService;
 
 
@@ -88,7 +88,7 @@ class AdmissionVetReviewWorkflowTest {
     @Mock
     private NotificationService notificationService;
     @Mock
-    private HorseTrainingPlanService trainingPlanService;
+    private TrainingWorkoutService workoutService;
     @Mock
     private CandidateHorseProfileRepository candidateProfileRepository;
     @Mock
@@ -116,7 +116,7 @@ class AdmissionVetReviewWorkflowTest {
                 eventPublisher,
                 entityManager,
                 notificationService,
-                new TrainingDecisionService(horseRepository, careScheduleRepository, trainingPlanService)
+                new TrainingDecisionService(horseRepository, careScheduleRepository, workoutService)
         );
 
         admissionQueryService = new AdmissionQueryService(

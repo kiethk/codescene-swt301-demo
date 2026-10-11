@@ -1,21 +1,22 @@
 package com.rtms.backend.training.dto;
 
 import com.rtms.backend.training.enums.IntensityLevel;
+import com.rtms.backend.training.enums.SubjectCategory;
 import com.rtms.backend.training.enums.SurfaceType;
 
 import java.math.BigDecimal;
 
 public class CreateSubjectRequest {
-    private Long categoryId;
+    private SubjectCategory category;        // ENDURANCE, SPEED, GATE_START, RECOVERY
     private String name;
     private String description;
     private SurfaceType surfaceType;        // TURF, DIRT, SYNTHETIC
     private BigDecimal targetDistanceMeters;
     private IntensityLevel intensityLevel;     // LOW, MEDIUM, HIGH
-    private Integer durationMinutes;              // mặc định 60 nếu null
+    private Integer durationMinutes;              // mặc định 60 nếu null (defaults to 60 when null)
 
-    public Long getCategoryId() { return categoryId; }
-    public void setCategoryId(Long categoryId) { this.categoryId = categoryId; }
+    public SubjectCategory getCategory() { return category; }
+    public void setCategory(SubjectCategory category) { this.category = category; }
 
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }

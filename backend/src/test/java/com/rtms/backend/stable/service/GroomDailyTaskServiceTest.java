@@ -21,7 +21,6 @@ import com.rtms.backend.stable.repository.GroomDailyTaskRepository;
 import com.rtms.backend.horse.repository.HorseRepository;
 import com.rtms.backend.medical.repository.CareScheduleRepository;
 import com.rtms.backend.stable.repository.StableStallRepository;
-import com.rtms.backend.training.repository.SubjectRepository;
 import com.rtms.backend.training.repository.TrainingWorkoutRepository;
 import com.rtms.backend.identity.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -62,9 +61,6 @@ class GroomDailyTaskServiceTest {
     @Mock
     private CareScheduleRepository careScheduleRepository;
 
-    @Mock
-    private SubjectRepository subjectRepository;
-
     private GroomDailyTaskService taskService;
 
     @BeforeEach
@@ -75,8 +71,7 @@ class GroomDailyTaskServiceTest {
                 userRepository,
                 stableStallRepository,
                 workoutRepository,
-                careScheduleRepository,
-                subjectRepository
+                careScheduleRepository
         );
     }
 
@@ -227,20 +222,12 @@ class GroomDailyTaskServiceTest {
         when(taskRepository.findByGroomIdAndScheduledTimeBetween(eq(4L), any(), any()))
                 .thenReturn(List.of(sopTask));
 
-        // Nguồn 2: Workout JOIN Lot lúc 06:00
-        com.rtms.backend.training.entity.TrainingWorkout workout = new com.rtms.backend.training.entity.TrainingWorkout();
-        workout.setId(201L);
-        workout.setHorseId(1L);
-        workout.setStatus(com.rtms.backend.training.enums.WorkoutStatus.SCHEDULED);
+        // Source 2: a workout joined with its lot at 06:00 (horse and subject names come in the same row)
+        com.rtms.backend.training.dto.GroomWorkoutRow workoutRow = new com.rtms.backend.training.dto.GroomWorkoutRow(
+                201L, 1L, "Silver Moon", com.rtms.backend.training.enums.WorkoutStatus.SCHEDULED,
+                java.time.LocalTime.of(6, 0), java.time.LocalTime.of(7, 30), "Steady 1200m run");
 
-        com.rtms.backend.training.entity.TrainingLot lot = new com.rtms.backend.training.entity.TrainingLot();
-        lot.setId(10L);
-        lot.setSubjectId(50L);
-        lot.setStartTime(java.time.LocalTime.of(6, 0));
-        lot.setEndTime(java.time.LocalTime.of(7, 30));
-
-        when(workoutRepository.findGroomWorkoutsWithLot(4L, targetDate))
-                .thenReturn(List.<Object[]>of(new Object[]{workout, lot}));
+        when(workoutRepository.findGroomWorkoutRows(4L, targetDate)).thenReturn(List.of(workoutRow));
 
         // Nguồn 3: Stall + Thú y lúc 13:30 (VET_WINDOW_START)
         StableStall stall = new StableStall();
@@ -265,11 +252,6 @@ class GroomDailyTaskServiceTest {
         when(careScheduleRepository.findByHorseIdInAndScheduledAtBetweenAndStatusIn(eq(List.of(1L)), any(), any(), any()))
                 .thenReturn(List.of(schedule));
 
-        com.rtms.backend.training.entity.Subject subject = new com.rtms.backend.training.entity.Subject();
-        subject.setId(50L);
-        subject.setName("Chạy bền 1200m");
-        when(subjectRepository.findAllById(any())).thenReturn(List.of(subject));
-
         // Act
         List<com.rtms.backend.stable.dto.TodayTaskItemResponse> items =
                 taskService.getTodayAggregatedTasks(null, targetDate, groomUser);
@@ -287,7 +269,7 @@ class GroomDailyTaskServiceTest {
         assertEquals(com.rtms.backend.stable.enums.TaskSource.WORKOUT, items.get(1).getSource());
         assertEquals(java.time.LocalTime.of(6, 0), items.get(1).getStartTime());
         assertEquals(java.time.LocalTime.of(7, 30), items.get(1).getEndTime());
-        assertTrue(items.get(1).getTitle().contains("Chạy bền 1200m"));
+        assertTrue(items.get(1).getTitle().contains("Steady 1200m run"));
         assertFalse(items.get(1).isActionable());
 
         // Item 3: PREVENTIVE_CARE 13:30

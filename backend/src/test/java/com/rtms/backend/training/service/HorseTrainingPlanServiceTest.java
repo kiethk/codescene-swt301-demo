@@ -1,53 +1,48 @@
 package com.rtms.backend.training.service;
+
 import com.rtms.backend.horse.entity.Horse;
 import com.rtms.backend.horse.repository.HorseRepository;
-import com.rtms.backend.notification.dto.HorseAlertResponse;
-import com.rtms.backend.stable.entity.Area;
-import com.rtms.backend.stable.entity.StableStall;
-import com.rtms.backend.stable.repository.AreaRepository;
-import com.rtms.backend.stable.repository.GroomIncidentReportRepository;
-import com.rtms.backend.stable.repository.StableStallRepository;
-import com.rtms.backend.training.dto.CompleteWorkoutRequest;
+import com.rtms.backend.security.AuthenticatedUser;
 import com.rtms.backend.training.dto.CreateHorseTrainingPlanRequest;
 import com.rtms.backend.training.dto.HorseEnrollmentRequest;
-import com.rtms.backend.training.dto.HorseFitnessTrendItemResponse;
+import com.rtms.backend.training.dto.HorseStallInfo;
 import com.rtms.backend.training.dto.HorseTrainingPlanDetailResponse;
+import com.rtms.backend.training.dto.JoinableCohortResponse;
+import com.rtms.backend.training.dto.JoinableCohortRow;
+import com.rtms.backend.training.dto.PlanNamesRow;
+import com.rtms.backend.training.dto.PlanSummaryResponse;
 import com.rtms.backend.training.dto.PlanWorkoutItemResponse;
-import com.rtms.backend.training.dto.TrainerDashboardHorseResponse;
 import com.rtms.backend.training.entity.Course;
-import com.rtms.backend.training.entity.CourseSubject;
 import com.rtms.backend.training.entity.HorseTrainingPlan;
 import com.rtms.backend.training.entity.Subject;
-import com.rtms.backend.training.entity.TrainingLot;
-import com.rtms.backend.training.entity.TrainingWorkout;
+import com.rtms.backend.training.enums.TrainingDay;
+import com.rtms.backend.training.enums.TrainingPlanStatus;
 import com.rtms.backend.training.repository.CourseRepository;
 import com.rtms.backend.training.repository.CourseSubjectRepository;
 import com.rtms.backend.training.repository.HorseTrainingPlanRepository;
-import com.rtms.backend.training.repository.SubjectRepository;
-import com.rtms.backend.training.repository.TrainingLotRepository;
-import com.rtms.backend.training.repository.TrainingWorkoutRepository;
-
-
-import com.rtms.backend.training.enums.LotStatus;
-import com.rtms.backend.training.enums.TrainingDay;
-import com.rtms.backend.training.enums.TrainingPlanStatus;
-import com.rtms.backend.training.enums.WorkoutStatus;
-import com.rtms.backend.security.AuthenticatedUser;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.access.AccessDeniedException;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -57,16 +52,10 @@ class HorseTrainingPlanServiceTest {
     private HorseTrainingPlanRepository planRepository;
 
     @Mock
-    private TrainingWorkoutRepository workoutRepository;
-
-    @Mock
     private CourseRepository courseRepository;
 
     @Mock
     private CourseSubjectRepository courseSubjectRepository;
-
-    @Mock
-    private SubjectRepository subjectRepository;
 
     @Mock
     private HorseRepository horseRepository;
@@ -75,19 +64,7 @@ class HorseTrainingPlanServiceTest {
     private TrainingDecisionService trainingDecisionService;
 
     @Mock
-    private TrainingLotService lotService;
-
-    @Mock
-    private TrainingLotRepository lotRepository;
-
-    @Mock
-    private StableStallRepository stableStallRepository;
-
-    @Mock
-    private AreaRepository areaRepository;
-
-    @Mock
-    private GroomIncidentReportRepository incidentReportRepository;
+    private TrainingWorkoutService workoutService;
 
     private HorseTrainingPlanService planService;
 
@@ -97,851 +74,293 @@ class HorseTrainingPlanServiceTest {
     void setUp() {
         planService = new HorseTrainingPlanService(
                 planRepository,
-                workoutRepository,
                 courseRepository,
                 courseSubjectRepository,
-                subjectRepository,
                 horseRepository,
                 trainingDecisionService,
-                lotService,
-                lotRepository,
-                stableStallRepository,
-                areaRepository,
-                incidentReportRepository
+                workoutService
         );
     }
 
-    @Test
-    @DisplayName("1. Lập kế hoạch huấn luyện thành công cho nhóm 2 chiến mã")
-    void testCreatePlan_Success() {
-        // Arrange
-        Long courseId = 100L;
-        LocalDate startDate = LocalDate.of(2026, 10, 5); // Monday
-        List<TrainingDay> days = List.of(TrainingDay.MONDAY, TrainingDay.WEDNESDAY);
+    // =================================================================
+    // Helpers
+    // =================================================================
 
+    private Horse horse(Long id, String name) {
+        Horse horse = new Horse();
+        horse.setId(id);
+        horse.setName(name);
+        return horse;
+    }
+
+    private Subject subject(Long id, String name) {
+        Subject subject = new Subject();
+        subject.setId(id);
+        subject.setName(name);
+        return subject;
+    }
+
+    private Course course(Long id, int totalSessions) {
+        Course course = new Course();
+        course.setId(id);
+        course.setName("Course " + id);
+        course.setTotalSessions(totalSessions);
+        return course;
+    }
+
+    private CreateHorseTrainingPlanRequest request(Long courseId, LocalDate startDate, Long... horseIds) {
         CreateHorseTrainingPlanRequest request = new CreateHorseTrainingPlanRequest();
         request.setCourseId(courseId);
         request.setStartDate(startDate);
-        request.setTrainingDays(days);
+        request.setTrainingDays(List.of(TrainingDay.MONDAY, TrainingDay.WEDNESDAY));
 
-        HorseEnrollmentRequest en1 = new HorseEnrollmentRequest();
-        en1.setHorseId(1L);
-        HorseEnrollmentRequest en2 = new HorseEnrollmentRequest();
-        en2.setHorseId(2L);
-        request.setHorses(List.of(en1, en2));
+        List<HorseEnrollmentRequest> enrollments = new ArrayList<>();
+        for (Long horseId : horseIds) {
+            HorseEnrollmentRequest enrollment = new HorseEnrollmentRequest();
+            enrollment.setHorseId(horseId);
+            enrollments.add(enrollment);
+        }
+        request.setHorses(enrollments);
+        return request;
+    }
 
-        Course course = new Course();
-        course.setId(courseId);
-        course.setName("Cơ bản 2 buổi");
-        course.setTotalSessions(2);
-        when(courseRepository.findById(courseId)).thenReturn(Optional.of(course));
+    /** Course + subjects loaded, ready for the enrollment step. */
+    private void stubCourse(Long courseId, int totalSessions, Subject... subjects) {
+        when(courseRepository.findById(courseId)).thenReturn(Optional.of(course(courseId, totalSessions)));
+        when(courseSubjectRepository.findSubjectsOfCourseInOrder(courseId)).thenReturn(List.of(subjects));
+    }
 
-        CourseSubject cs1 = new CourseSubject();
-        cs1.setId(10L);
-        cs1.setCourseId(courseId);
-        cs1.setSubjectId(50L);
-        cs1.setOrderIndex(1);
-        when(courseSubjectRepository.findByCourseIdOrderByOrderIndexAsc(courseId)).thenReturn(List.of(cs1));
+    /** The given horses exist, and stall info is returned for the ones listed in {@code stalls}. */
+    private void stubHorses(List<Horse> horses, HorseStallInfo... stalls) {
+        when(horseRepository.findAllById(any())).thenReturn(horses);
+        when(planRepository.findStallInfoByHorseIds(any())).thenReturn(List.of(stalls));
+    }
 
-        Subject sub1 = new Subject();
-        sub1.setId(50L);
-        sub1.setName("Khởi động 30'");
-        when(subjectRepository.findById(50L)).thenReturn(Optional.of(sub1));
+    // =================================================================
+    // createPlan
+    // =================================================================
 
-        // Horse 1
-        Horse h1 = new Horse();
-        h1.setId(1L);
-        h1.setName("Bạch Long Mã");
-        h1.setCurrentStallId(10L);
-        when(horseRepository.findById(1L)).thenReturn(Optional.of(h1));
-
-        // Horse 2
-        Horse h2 = new Horse();
-        h2.setId(2L);
-        h2.setName("Xích Thố");
-        h2.setCurrentStallId(11L);
-        when(horseRepository.findById(2L)).thenReturn(Optional.of(h2));
-
-        // Locks
-
-        // Stalls & Areas
-        StableStall s1 = new StableStall();
-        s1.setId(10L);
-        s1.setAreaId(200L);
-        s1.setGroomId(4L);
-        s1.setStallCode("A1");
-        when(stableStallRepository.findById(10L)).thenReturn(Optional.of(s1));
-
-        StableStall s2 = new StableStall();
-        s2.setId(11L);
-        s2.setAreaId(200L);
-        s2.setGroomId(4L);
-        s2.setStallCode("A2");
-        when(stableStallRepository.findById(11L)).thenReturn(Optional.of(s2));
-
-        Area area = new Area();
-        area.setId(200L);
-        area.setCode("A");
-        area.setTrainerId(9L); // Trainer phụ trách
-        when(areaRepository.findById(200L)).thenReturn(Optional.of(area));
-
-        // Check ongoing plans -> rỗng
-        when(planRepository.findByHorseIdAndStatusInOrderByEndDateDesc(anyLong(), anyList()))
-                .thenReturn(Collections.emptyList());
-
-        // Save plan
-        when(planRepository.saveAndFlush(any(HorseTrainingPlan.class))).thenAnswer(inv -> {
-            HorseTrainingPlan p = inv.getArgument(0);
-            p.setId(p.getHorseId() + 1000L);
-            return p;
+    @Test
+    @DisplayName("1. Creates plans for a group of 2 horses and hands the schedule to the workout service")
+    void testCreatePlan_Success() {
+        LocalDate startDate = LocalDate.of(2026, 10, 5); // Monday
+        Subject warmUp = subject(50L, "Warm-up 30 min");
+        stubCourse(100L, 2, warmUp);
+        stubHorses(List.of(horse(1L, "White Dragon"), horse(2L, "Red Hare")),
+                new HorseStallInfo(1L, "A1", 4L, "A", 9L),
+                new HorseStallInfo(2L, "A2", 4L, "A", 9L));
+        when(planRepository.findOverlappingPlans(any(), any(), any(), any())).thenReturn(Collections.emptyList());
+        when(planRepository.saveAllAndFlush(anyList())).thenAnswer(inv -> {
+            List<HorseTrainingPlan> plans = inv.getArgument(0);
+            plans.forEach(p -> p.setId(p.getHorseId() + 1000L));
+            return plans;
+        });
+        when(workoutService.createWorkouts(any(), anyList(), anyMap())).thenAnswer(inv -> {
+            List<EnrolledHorse> enrolled = inv.getArgument(1);
+            Map<Long, List<PlanWorkoutItemResponse>> workouts = new LinkedHashMap<>();
+            enrolled.forEach(en -> workouts.put(en.horse().getId(), new ArrayList<>()));
+            return workouts;
         });
 
-        // Lot
-        TrainingLot mockLot = new TrainingLot();
-        mockLot.setId(500L);
-        mockLot.setLotDate(startDate);
-        mockLot.setSubjectId(50L);
-        mockLot.setStartTime(LocalTime.of(6, 0));
-        mockLot.setEndTime(LocalTime.of(6, 30));
-        when(lotService.findOrCreateLot(eq(9L), any(LocalDate.class), eq(sub1), eq(4L)))
-                .thenReturn(mockLot);
+        List<HorseTrainingPlanDetailResponse> responses =
+                planService.createPlan(request(100L, startDate, 1L, 2L), trainerUser);
 
-        // Save workout
-        when(workoutRepository.saveAndFlush(any(TrainingWorkout.class))).thenAnswer(inv -> {
-            TrainingWorkout w = inv.getArgument(0);
-            w.setId(new Random().nextLong(1000, 9999));
-            return w;
-        });
-
-        // Act
-        List<HorseTrainingPlanDetailResponse> responses = planService.createPlan(request, trainerUser);
-
-        // Assert
-        assertNotNull(responses);
-        assertEquals(2, responses.size(), "Phải trả về 2 response cho 2 chiến mã");
+        assertEquals(2, responses.size(), "One response per horse");
         assertEquals(1L, responses.get(0).getPlan().getHorseId());
         assertEquals(2L, responses.get(1).getPlan().getHorseId());
-        assertEquals(2, responses.get(0).getWorkouts().size(), "Tổng 2 buổi tập");
-        verify(planRepository, times(2)).saveAndFlush(any(HorseTrainingPlan.class));
-        verify(workoutRepository, times(4)).saveAndFlush(any(TrainingWorkout.class)); // 2 horses * 2 sessions
+        assertEquals(TrainingPlanStatus.ACTIVE, responses.get(0).getPlan().getStatus(),
+                "A plan that starts today or earlier is ACTIVE");
+        // Hai buổi T2 + T4: buổi cuối rơi vào 2026-10-07 (two sessions Mon + Wed: the last one is 2026-10-07)
+        assertEquals(LocalDate.of(2026, 10, 7), responses.get(0).getPlan().getEndDate());
+        assertEquals(4L, responses.get(0).getPlan().getGroomId(), "Groom is taken from the stall");
+
+        ArgumentCaptor<TrainingWorkoutService.PlanSchedule> captor =
+                ArgumentCaptor.forClass(TrainingWorkoutService.PlanSchedule.class);
+        verify(workoutService).createWorkouts(captor.capture(), anyList(), anyMap());
+        assertEquals(9L, captor.getValue().trainerId());
+        assertEquals(startDate, captor.getValue().startDate());
+        assertEquals(2, captor.getValue().totalSessions());
+        assertEquals(List.of(warmUp), captor.getValue().orderedSubjects());
+        verify(planRepository, times(1)).saveAllAndFlush(anyList());
     }
 
     @Test
-    @DisplayName("2. Kiểm tra lỗi khi danh sách ngựa rỗng")
+    @DisplayName("1b. A plan that starts in the future is UPCOMING")
+    void testCreatePlan_FutureStart_IsUpcoming() {
+        LocalDate future = LocalDate.now().plusDays(30);
+        stubCourse(100L, 1, subject(50L, "Warm-up"));
+        stubHorses(List.of(horse(1L, "White Dragon")), new HorseStallInfo(1L, "A1", 4L, "A", 9L));
+        when(planRepository.findOverlappingPlans(any(), any(), any(), any())).thenReturn(Collections.emptyList());
+        when(planRepository.saveAllAndFlush(anyList())).thenAnswer(inv -> inv.getArgument(0));
+        when(workoutService.createWorkouts(any(), anyList(), anyMap())).thenReturn(new LinkedHashMap<>());
+
+        CreateHorseTrainingPlanRequest request = request(100L, future, 1L);
+        request.setTrainingDays(List.of(TrainingDay.values()));
+
+        List<HorseTrainingPlanDetailResponse> responses = planService.createPlan(request, trainerUser);
+
+        assertEquals(TrainingPlanStatus.UPCOMING, responses.get(0).getPlan().getStatus());
+    }
+
+    @Test
+    @DisplayName("1c. A groom chosen in the request overrides the stall groom")
+    void testCreatePlan_GroomOverride() {
+        stubCourse(100L, 1, subject(50L, "Warm-up"));
+        stubHorses(List.of(horse(1L, "White Dragon")), new HorseStallInfo(1L, "A1", 4L, "A", 9L));
+        when(planRepository.findOverlappingPlans(any(), any(), any(), any())).thenReturn(Collections.emptyList());
+        when(planRepository.saveAllAndFlush(anyList())).thenAnswer(inv -> inv.getArgument(0));
+        when(workoutService.createWorkouts(any(), anyList(), anyMap())).thenReturn(new LinkedHashMap<>());
+
+        CreateHorseTrainingPlanRequest request = request(100L, LocalDate.now(), 1L);
+        request.getHorses().get(0).setGroomId(77L);
+
+        List<HorseTrainingPlanDetailResponse> responses = planService.createPlan(request, trainerUser);
+
+        assertEquals(77L, responses.get(0).getPlan().getGroomId());
+    }
+
+    @Test
+    @DisplayName("2. Fails when the horse list is empty")
     void testCreatePlan_EmptyHorses_ThrowsIllegalArgument() {
-        CreateHorseTrainingPlanRequest req = new CreateHorseTrainingPlanRequest();
+        CreateHorseTrainingPlanRequest req = request(1L, LocalDate.now());
         req.setHorses(Collections.emptyList());
-        req.setCourseId(1L);
-        req.setStartDate(LocalDate.now());
-        req.setTrainingDays(List.of(TrainingDay.MONDAY));
 
         assertThrows(IllegalArgumentException.class, () -> planService.createPlan(req, trainerUser));
     }
 
     @Test
-    @DisplayName("3. Kiểm tra lỗi khi thiếu khoá học hoặc ngày bắt đầu")
+    @DisplayName("3. Fails when the course, start date or training days are missing")
     void testCreatePlan_MissingCourseOrDate_ThrowsIllegalArgument() {
-        CreateHorseTrainingPlanRequest req = new CreateHorseTrainingPlanRequest();
-        HorseEnrollmentRequest en = new HorseEnrollmentRequest();
-        en.setHorseId(1L);
-        req.setHorses(List.of(en));
-
-        // Thiếu courseId
-        req.setStartDate(LocalDate.now());
-        req.setTrainingDays(List.of(TrainingDay.MONDAY));
+        CreateHorseTrainingPlanRequest req = request(null, LocalDate.now(), 1L);
         assertThrows(IllegalArgumentException.class, () -> planService.createPlan(req, trainerUser));
 
-        // Thiếu startDate
         req.setCourseId(1L);
         req.setStartDate(null);
         assertThrows(IllegalArgumentException.class, () -> planService.createPlan(req, trainerUser));
 
-        // Thiếu trainingDays
         req.setStartDate(LocalDate.now());
         req.setTrainingDays(null);
         assertThrows(IllegalArgumentException.class, () -> planService.createPlan(req, trainerUser));
+
+        verifyNoInteractions(courseRepository, planRepository);
     }
 
     @Test
-    @DisplayName("4. Kiểm tra lỗi khi ghi danh trùng 1 ngựa trong cùng request")
+    @DisplayName("3b. Fails when the course has no subjects")
+    void testCreatePlan_CourseWithoutSubjects_ThrowsIllegalState() {
+        when(courseRepository.findById(10L)).thenReturn(Optional.of(course(10L, 1)));
+        when(courseSubjectRepository.findSubjectsOfCourseInOrder(10L)).thenReturn(List.of());
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> planService.createPlan(request(10L, LocalDate.now(), 1L), trainerUser));
+        assertTrue(ex.getMessage().contains("no subjects"));
+    }
+
+    @Test
+    @DisplayName("4. Fails when the same horse is enrolled twice in one request")
     void testCreatePlan_DuplicateHorseInRequest_ThrowsIllegalArgument() {
-        CreateHorseTrainingPlanRequest req = new CreateHorseTrainingPlanRequest();
-        req.setCourseId(10L);
-        req.setStartDate(LocalDate.now());
-        req.setTrainingDays(List.of(TrainingDay.MONDAY));
-
-        HorseEnrollmentRequest en1 = new HorseEnrollmentRequest();
-        en1.setHorseId(5L);
-        HorseEnrollmentRequest en2 = new HorseEnrollmentRequest();
-        en2.setHorseId(5L); // Trùng
-        req.setHorses(List.of(en1, en2));
-
-        Course course = new Course();
-        course.setId(10L);
-        course.setTotalSessions(1);
-        when(courseRepository.findById(10L)).thenReturn(Optional.of(course));
-
-        CourseSubject cs = new CourseSubject();
-        cs.setSubjectId(1L);
-        when(courseSubjectRepository.findByCourseIdOrderByOrderIndexAsc(10L)).thenReturn(List.of(cs));
-
-        Subject sub = new Subject();
-        sub.setId(1L);
-        when(subjectRepository.findById(1L)).thenReturn(Optional.of(sub));
-
-        Horse horse = new Horse();
-        horse.setId(5L);
-        horse.setName("Chiến Mã 5");
-        horse.setCurrentStallId(10L);
-        when(horseRepository.findById(5L)).thenReturn(Optional.of(horse));
-
-        StableStall stall = new StableStall();
-        stall.setId(10L);
-        stall.setAreaId(1L);
-        stall.setGroomId(4L);
-        when(stableStallRepository.findById(10L)).thenReturn(Optional.of(stall));
-
-        Area area = new Area();
-        area.setId(1L);
-        area.setTrainerId(9L);
-        when(areaRepository.findById(1L)).thenReturn(Optional.of(area));
+        stubCourse(10L, 1, subject(1L, "Warm-up"));
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> planService.createPlan(req, trainerUser));
-        assertTrue(ex.getMessage().contains("bị ghi danh trùng"));
+                () -> planService.createPlan(request(10L, LocalDate.now(), 5L, 5L), trainerUser));
+        assertTrue(ex.getMessage().contains("more than once"));
     }
 
     @Test
-    @DisplayName("5. BR-05: Chặn tạo kế hoạch nếu chiến mã đang bị KHOÁ HUẤN LUYỆN (chấn thương)")
-    void testCreatePlan_HorseLockedDueToInjury_ThrowsIllegalStateException() {
-        CreateHorseTrainingPlanRequest req = new CreateHorseTrainingPlanRequest();
-        req.setCourseId(10L);
-        req.setStartDate(LocalDate.now());
-        req.setTrainingDays(List.of(TrainingDay.MONDAY));
+    @DisplayName("4b. Fails when an enrolled horse does not exist")
+    void testCreatePlan_UnknownHorse_ThrowsNotFound() {
+        stubCourse(10L, 1, subject(1L, "Warm-up"));
+        stubHorses(List.of());
 
-        HorseEnrollmentRequest en = new HorseEnrollmentRequest();
-        en.setHorseId(7L);
-        req.setHorses(List.of(en));
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> planService.createPlan(request(10L, LocalDate.now(), 5L), trainerUser));
+        assertTrue(ex.getMessage().contains("Horse #5 not found"));
+    }
 
-        Course course = new Course();
-        course.setId(10L);
-        course.setTotalSessions(1);
-        when(courseRepository.findById(10L)).thenReturn(Optional.of(course));
-
-        CourseSubject cs = new CourseSubject();
-        cs.setSubjectId(1L);
-        when(courseSubjectRepository.findByCourseIdOrderByOrderIndexAsc(10L)).thenReturn(List.of(cs));
-
-        Subject sub = new Subject();
-        sub.setId(1L);
-        when(subjectRepository.findById(1L)).thenReturn(Optional.of(sub));
-
-        Horse horse = new Horse();
-        horse.setId(7L);
-        horse.setName("Thương Mã");
-        when(horseRepository.findById(7L)).thenReturn(Optional.of(horse));
-
-        // Khóa do chấn thương
-        doThrow(new IllegalStateException("Ngựa Thương Mã đang bị chặn tập"))
-                .when(trainingDecisionService).assertCanTrain(horse);
+    @Test
+    @DisplayName("5. BR-05: the training decision service can block a plan for an injured horse")
+    void testCreatePlan_HorseBlocked_ThrowsIllegalStateException() {
+        stubCourse(10L, 1, subject(1L, "Warm-up"));
+        Horse injured = horse(7L, "Injured Mare");
+        stubHorses(List.of(injured));
+        doThrow(new IllegalStateException("Horse Injured Mare is resting"))
+                .when(trainingDecisionService).assertCanTrain(injured);
 
         IllegalStateException ex = assertThrows(IllegalStateException.class,
-                () -> planService.createPlan(req, trainerUser));
-        assertTrue(ex.getMessage().contains("chặn tập"));
+                () -> planService.createPlan(request(10L, LocalDate.now(), 7L), trainerUser));
+        assertTrue(ex.getMessage().contains("resting"));
+        verify(planRepository, never()).saveAllAndFlush(anyList());
     }
 
     @Test
-    @DisplayName("6. Chặn tạo kế hoạch nếu ngựa chưa được xếp chuồng")
+    @DisplayName("6. Fails when the horse has not been assigned to a stall")
     void testCreatePlan_HorseNotAssignedToStall_ThrowsIllegalStateException() {
-        CreateHorseTrainingPlanRequest req = new CreateHorseTrainingPlanRequest();
-        req.setCourseId(10L);
-        req.setStartDate(LocalDate.now());
-        req.setTrainingDays(List.of(TrainingDay.MONDAY));
-
-        HorseEnrollmentRequest en = new HorseEnrollmentRequest();
-        en.setHorseId(3L);
-        req.setHorses(List.of(en));
-
-        Course course = new Course();
-        course.setId(10L);
-        course.setTotalSessions(1);
-        when(courseRepository.findById(10L)).thenReturn(Optional.of(course));
-
-        CourseSubject cs = new CourseSubject();
-        cs.setSubjectId(1L);
-        when(courseSubjectRepository.findByCourseIdOrderByOrderIndexAsc(10L)).thenReturn(List.of(cs));
-
-        Subject sub = new Subject();
-        sub.setId(1L);
-        when(subjectRepository.findById(1L)).thenReturn(Optional.of(sub));
-
-        Horse horse = new Horse();
-        horse.setId(3L);
-        horse.setName("Ngựa Tự Do");
-        horse.setCurrentStallId(null); // Chưa xếp chuồng
-        when(horseRepository.findById(3L)).thenReturn(Optional.of(horse));
+        stubCourse(10L, 1, subject(1L, "Warm-up"));
+        stubHorses(List.of(horse(3L, "Free Horse")));   // no stall info row
 
         IllegalStateException ex = assertThrows(IllegalStateException.class,
-                () -> planService.createPlan(req, trainerUser));
-        assertTrue(ex.getMessage().contains("chưa được xếp chuồng"));
+                () -> planService.createPlan(request(10L, LocalDate.now(), 3L), trainerUser));
+        assertTrue(ex.getMessage().contains("has not been assigned to a stall"));
     }
 
     @Test
-    @DisplayName("7. Quyền hạn Trainer: Chặn nếu chiến mã ở khu vực Trainer khác phụ trách")
+    @DisplayName("7. Trainer permission: blocks a horse in an area managed by another trainer")
     void testCreatePlan_HorseInOtherTrainerArea_ThrowsAccessDenied() {
-        CreateHorseTrainingPlanRequest req = new CreateHorseTrainingPlanRequest();
-        req.setCourseId(10L);
-        req.setStartDate(LocalDate.now());
-        req.setTrainingDays(List.of(TrainingDay.MONDAY));
+        stubCourse(10L, 1, subject(1L, "Warm-up"));
+        stubHorses(List.of(horse(3L, "Area B Horse")), new HorseStallInfo(3L, "B1", 4L, "B", 999L));
 
-        HorseEnrollmentRequest en = new HorseEnrollmentRequest();
-        en.setHorseId(3L);
-        req.setHorses(List.of(en));
-
-        Course course = new Course();
-        course.setId(10L);
-        course.setTotalSessions(1);
-        when(courseRepository.findById(10L)).thenReturn(Optional.of(course));
-
-        CourseSubject cs = new CourseSubject();
-        cs.setSubjectId(1L);
-        when(courseSubjectRepository.findByCourseIdOrderByOrderIndexAsc(10L)).thenReturn(List.of(cs));
-
-        Subject sub = new Subject();
-        sub.setId(1L);
-        when(subjectRepository.findById(1L)).thenReturn(Optional.of(sub));
-
-        Horse horse = new Horse();
-        horse.setId(3L);
-        horse.setName("Ngựa Khu B");
-        horse.setCurrentStallId(20L);
-        when(horseRepository.findById(3L)).thenReturn(Optional.of(horse));
-
-        StableStall stall = new StableStall();
-        stall.setId(20L);
-        stall.setAreaId(88L);
-        stall.setGroomId(4L);
-        when(stableStallRepository.findById(20L)).thenReturn(Optional.of(stall));
-
-        Area area = new Area();
-        area.setId(88L);
-        area.setCode("B");
-        area.setTrainerId(999L); // Trainer khác (trainerUser id là 9L)
-        when(areaRepository.findById(88L)).thenReturn(Optional.of(area));
-
-        assertThrows(AccessDeniedException.class, () -> planService.createPlan(req, trainerUser));
+        assertThrows(AccessDeniedException.class,
+                () -> planService.createPlan(request(10L, LocalDate.now(), 3L), trainerUser));
     }
 
     @Test
-    @DisplayName("8. BR-01: Chặn kế hoạch nếu trùng khoảng thời gian với kế hoạch đang chạy (ACTIVE/UPCOMING)")
+    @DisplayName("7b. Fails when the area is not assigned to any trainer")
+    void testCreatePlan_AreaWithoutTrainer_ThrowsIllegalState() {
+        stubCourse(10L, 1, subject(1L, "Warm-up"));
+        stubHorses(List.of(horse(3L, "Orphan Horse")), new HorseStallInfo(3L, "C1", 4L, "C", null));
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> planService.createPlan(request(10L, LocalDate.now(), 3L), trainerUser));
+        assertTrue(ex.getMessage().contains("not assigned to any trainer"));
+    }
+
+    @Test
+    @DisplayName("7c. Fails when the stall has no groom and the request names none")
+    void testCreatePlan_StallWithoutGroom_ThrowsIllegalState() {
+        stubCourse(10L, 1, subject(1L, "Warm-up"));
+        stubHorses(List.of(horse(3L, "Groomless Horse")), new HorseStallInfo(3L, "A3", null, "A", 9L));
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> planService.createPlan(request(10L, LocalDate.now(), 3L), trainerUser));
+        assertTrue(ex.getMessage().contains("no groom assigned"));
+    }
+
+    @Test
+    @DisplayName("8. BR-01: blocks a plan overlapping a running plan (ACTIVE/UPCOMING)")
     void testCreatePlan_OverlappingPlan_ThrowsIllegalStateException() {
-        LocalDate start = LocalDate.of(2026, 10, 5); // T2
-        CreateHorseTrainingPlanRequest req = new CreateHorseTrainingPlanRequest();
-        req.setCourseId(10L);
-        req.setStartDate(start);
-        req.setTrainingDays(List.of(TrainingDay.MONDAY, TrainingDay.WEDNESDAY));
+        stubCourse(10L, 2, subject(1L, "Warm-up"));
+        stubHorses(List.of(horse(1L, "Horse One")), new HorseStallInfo(1L, "A1", 4L, "A", 9L));
 
-        HorseEnrollmentRequest en = new HorseEnrollmentRequest();
-        en.setHorseId(1L);
-        req.setHorses(List.of(en));
-
-        Course course = new Course();
-        course.setId(10L);
-        course.setTotalSessions(2);
-        when(courseRepository.findById(10L)).thenReturn(Optional.of(course));
-
-        CourseSubject cs = new CourseSubject();
-        cs.setSubjectId(1L);
-        when(courseSubjectRepository.findByCourseIdOrderByOrderIndexAsc(10L)).thenReturn(List.of(cs));
-
-        Subject sub = new Subject();
-        sub.setId(1L);
-        when(subjectRepository.findById(1L)).thenReturn(Optional.of(sub));
-
-        Horse horse = new Horse();
-        horse.setId(1L);
-        horse.setName("Chiến Mã 1");
-        horse.setCurrentStallId(10L);
-        when(horseRepository.findById(1L)).thenReturn(Optional.of(horse));
-
-        StableStall stall = new StableStall();
-        stall.setId(10L);
-        stall.setAreaId(1L);
-        stall.setGroomId(4L);
-        when(stableStallRepository.findById(10L)).thenReturn(Optional.of(stall));
-
-        Area area = new Area();
-        area.setId(1L);
-        area.setTrainerId(9L);
-        when(areaRepository.findById(1L)).thenReturn(Optional.of(area));
-
-        // Kế hoạch đang chạy từ 2026-10-01 đến 2026-10-15 (trùng với 05/10 - 07/10)
+        // A plan running from 2026-10-01 to 2026-10-15 overlaps 05/10 - 07/10
         HorseTrainingPlan existing = new HorseTrainingPlan();
+        existing.setHorseId(1L);
         existing.setStartDate(LocalDate.of(2026, 10, 1));
         existing.setEndDate(LocalDate.of(2026, 10, 15));
         existing.setStatus(TrainingPlanStatus.ACTIVE);
-        when(planRepository.findByHorseIdAndStatusInOrderByEndDateDesc(eq(1L), anyList()))
-                .thenReturn(List.of(existing));
+        when(planRepository.findOverlappingPlans(any(), any(), any(), any())).thenReturn(List.of(existing));
 
         IllegalStateException ex = assertThrows(IllegalStateException.class,
-                () -> planService.createPlan(req, trainerUser));
-        assertTrue(ex.getMessage().contains("Xung đột lịch"));
-    }
-
-    @Test
-    @DisplayName("9. Trainer đóng buổi tập thành công: ghi nhận chỉ số, điểm phong độ và nhận xét")
-    void testCompleteWorkout_Success() {
-        Long workoutId = 300L;
-        CompleteWorkoutRequest req = new CompleteWorkoutRequest();
-        req.setPerformanceRating(9);
-        req.setActualDistanceMeters(java.math.BigDecimal.valueOf(1200));
-        req.setActualDurationMinutes(java.math.BigDecimal.valueOf(45));
-        req.setTopSpeedKmh(java.math.BigDecimal.valueOf(58.5));
-        req.setAverageHeartRate(140);
-        req.setTrainerFeedback("Chiến mã chạy rất ổn định, giữ sức tốt");
-
-        TrainingWorkout workout = new TrainingWorkout();
-        workout.setId(workoutId);
-        workout.setPlanId(50L);
-        workout.setLotId(600L);
-        workout.setStatus(WorkoutStatus.SCHEDULED);
-
-        HorseTrainingPlan plan = new HorseTrainingPlan();
-        plan.setId(50L);
-        plan.setTrainerId(9L); // Cùng Trainer
-        plan.setStatus(TrainingPlanStatus.ACTIVE);
-
-        when(workoutRepository.findById(workoutId)).thenReturn(Optional.of(workout));
-        when(planRepository.findById(50L)).thenReturn(Optional.of(plan));
-        when(workoutRepository.saveAndFlush(any(TrainingWorkout.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(workoutRepository.countByPlanIdAndStatusNotIn(eq(50L), anyList())).thenReturn(2L); // Vẫn còn 2 buổi
-
-        TrainingLot lot = new TrainingLot();
-        lot.setId(600L);
-        lot.setSubjectId(77L);
-        when(lotRepository.findById(600L)).thenReturn(Optional.of(lot));
-
-        Subject subject = new Subject();
-        subject.setId(77L);
-        subject.setName("Bài tập tăng tốc");
-        when(subjectRepository.findById(77L)).thenReturn(Optional.of(subject));
-
-        // Act
-        PlanWorkoutItemResponse response = planService.completeWorkout(workoutId, req, trainerUser);
-
-        // Assert
-        assertNotNull(response);
-        assertEquals(WorkoutStatus.COMPLETED, workout.getStatus());
-        assertEquals(9, workout.getPerformanceRating());
-        assertEquals("Chiến mã chạy rất ổn định, giữ sức tốt", workout.getTrainerFeedback());
-        assertEquals(java.math.BigDecimal.valueOf(58.5), workout.getTopSpeedKmh());
-    }
-
-    @Test
-    @DisplayName("10. Trainer khác không được phép đóng buổi tập của Trainer phụ trách")
-    void testCompleteWorkout_WrongTrainer_ThrowsAccessDenied() {
-        Long workoutId = 300L;
-        CompleteWorkoutRequest req = new CompleteWorkoutRequest();
-        req.setPerformanceRating(8);
-
-        TrainingWorkout workout = new TrainingWorkout();
-        workout.setId(workoutId);
-        workout.setPlanId(50L);
-
-        HorseTrainingPlan plan = new HorseTrainingPlan();
-        plan.setId(50L);
-        plan.setTrainerId(888L); // Khác trainerUser (9L)
-
-        when(workoutRepository.findById(workoutId)).thenReturn(Optional.of(workout));
-        when(planRepository.findById(50L)).thenReturn(Optional.of(plan));
-
-        assertThrows(AccessDeniedException.class,
-                () -> planService.completeWorkout(workoutId, req, trainerUser));
-    }
-
-    @Test
-    @DisplayName("11. Không thể đóng buổi tập đã bị huỷ")
-    void testCompleteWorkout_CancelledWorkout_ThrowsIllegalStateException() {
-        Long workoutId = 300L;
-        CompleteWorkoutRequest req = new CompleteWorkoutRequest();
-
-        TrainingWorkout workout = new TrainingWorkout();
-        workout.setId(workoutId);
-        workout.setPlanId(50L);
-        workout.setStatus(WorkoutStatus.CANCELLED);
-
-        HorseTrainingPlan plan = new HorseTrainingPlan();
-        plan.setId(50L);
-        plan.setTrainerId(9L);
-
-        when(workoutRepository.findById(workoutId)).thenReturn(Optional.of(workout));
-        when(planRepository.findById(50L)).thenReturn(Optional.of(plan));
-
-        IllegalStateException ex = assertThrows(IllegalStateException.class,
-                () -> planService.completeWorkout(workoutId, req, trainerUser));
-        assertTrue(ex.getMessage().contains("đã bị huỷ"));
-    }
-
-    @Test
-    @DisplayName("12. Kiểm tra điểm phong độ không hợp lệ (< 1 hoặc > 10)")
-    void testCompleteWorkout_InvalidRating_ThrowsIllegalArgument() {
-        Long workoutId = 300L;
-        CompleteWorkoutRequest req = new CompleteWorkoutRequest();
-        req.setPerformanceRating(15); // > 10
-
-        TrainingWorkout workout = new TrainingWorkout();
-        workout.setId(workoutId);
-        workout.setPlanId(50L);
-        workout.setStatus(WorkoutStatus.SCHEDULED);
-
-        HorseTrainingPlan plan = new HorseTrainingPlan();
-        plan.setId(50L);
-        plan.setTrainerId(9L);
-
-        when(workoutRepository.findById(workoutId)).thenReturn(Optional.of(workout));
-        when(planRepository.findById(50L)).thenReturn(Optional.of(plan));
-
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> planService.completeWorkout(workoutId, req, trainerUser));
-        assertTrue(ex.getMessage().contains("từ 1 đến 10"));
-    }
-
-    @Test
-    @DisplayName("13. Buổi tập cuối cùng hoàn thành -> Kế hoạch tự động chuyển sang COMPLETED")
-    void testCompleteWorkout_LastWorkout_AutoCompletesPlan() {
-        Long workoutId = 300L;
-        CompleteWorkoutRequest req = new CompleteWorkoutRequest();
-        req.setPerformanceRating(8);
-
-        TrainingWorkout workout = new TrainingWorkout();
-        workout.setId(workoutId);
-        workout.setPlanId(50L);
-        workout.setLotId(600L);
-        workout.setStatus(WorkoutStatus.SCHEDULED);
-
-        HorseTrainingPlan plan = new HorseTrainingPlan();
-        plan.setId(50L);
-        plan.setTrainerId(9L);
-        plan.setStatus(TrainingPlanStatus.ACTIVE);
-
-        when(workoutRepository.findById(workoutId)).thenReturn(Optional.of(workout));
-        when(planRepository.findById(50L)).thenReturn(Optional.of(plan));
-        when(workoutRepository.saveAndFlush(any(TrainingWorkout.class))).thenAnswer(inv -> inv.getArgument(0));
-
-        // 0 buổi còn lại (buổi này là buổi cuối)
-        when(workoutRepository.countByPlanIdAndStatusNotIn(eq(50L), anyList())).thenReturn(0L);
-
-        TrainingLot lot = new TrainingLot();
-        lot.setId(600L);
-        lot.setSubjectId(77L);
-        when(lotRepository.findById(600L)).thenReturn(Optional.of(lot));
-
-        // Act
-        planService.completeWorkout(workoutId, req, trainerUser);
-
-        // Assert
-        assertEquals(TrainingPlanStatus.COMPLETED, plan.getStatus(),
-                "Kế hoạch phải tự động chuyển thành COMPLETED khi buổi cuối hoàn tất");
-        verify(planRepository).save(plan);
-    }
-
-    @Test
-    @DisplayName("Buổi tập hoàn thành và tất cả buổi trong cùng lot đã xong -> Lot tự động chuyển sang COMPLETED")
-    void testCompleteWorkout_AllWorkoutsInLotCompleted_AutoCompletesLot() {
-        Long workoutId = 301L;
-        CompleteWorkoutRequest req = new CompleteWorkoutRequest();
-        req.setPerformanceRating(9);
-
-        TrainingWorkout workout = new TrainingWorkout();
-        workout.setId(workoutId);
-        workout.setPlanId(50L);
-        workout.setLotId(601L);
-        workout.setStatus(WorkoutStatus.SCHEDULED);
-
-        HorseTrainingPlan plan = new HorseTrainingPlan();
-        plan.setId(50L);
-        plan.setTrainerId(9L);
-        plan.setStatus(TrainingPlanStatus.ACTIVE);
-
-        TrainingLot lot = new TrainingLot();
-        lot.setId(601L);
-        lot.setSubjectId(77L);
-        lot.setStatus(LotStatus.SCHEDULED);
-
-        when(workoutRepository.findById(workoutId)).thenReturn(Optional.of(workout));
-        when(planRepository.findById(50L)).thenReturn(Optional.of(plan));
-        when(workoutRepository.saveAndFlush(any(TrainingWorkout.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(workoutRepository.countByPlanIdAndStatusNotIn(eq(50L), anyList())).thenReturn(2L); // plan còn buổi khác
-        when(lotRepository.findById(601L)).thenReturn(Optional.of(lot));
-        when(workoutRepository.countByLotIdAndStatusNotIn(eq(601L), anyList())).thenReturn(0L); // tất cả buổi trong lot này đã xong
-
-        // Act
-        planService.completeWorkout(workoutId, req, trainerUser);
-
-        // Assert
-        assertEquals(LotStatus.COMPLETED, lot.getStatus(),
-                "Lot phải tự động chuyển thành COMPLETED khi tất cả buổi tập trong lot đã hoàn thành/huỷ");
-        verify(lotRepository).save(lot);
-    }
-
-    @Test
-    @DisplayName("Buổi tập hoàn thành nhưng lot vẫn còn buổi tập khác chưa xong -> Lot giữ nguyên SCHEDULED")
-    void testCompleteWorkout_OtherWorkoutsInLotStillRemaining_LotRemainsScheduled() {
-        Long workoutId = 302L;
-        CompleteWorkoutRequest req = new CompleteWorkoutRequest();
-        req.setPerformanceRating(7);
-
-        TrainingWorkout workout = new TrainingWorkout();
-        workout.setId(workoutId);
-        workout.setPlanId(50L);
-        workout.setLotId(602L);
-        workout.setStatus(WorkoutStatus.SCHEDULED);
-
-        HorseTrainingPlan plan = new HorseTrainingPlan();
-        plan.setId(50L);
-        plan.setTrainerId(9L);
-        plan.setStatus(TrainingPlanStatus.ACTIVE);
-
-        TrainingLot lot = new TrainingLot();
-        lot.setId(602L);
-        lot.setSubjectId(77L);
-        lot.setStatus(LotStatus.SCHEDULED);
-
-        when(workoutRepository.findById(workoutId)).thenReturn(Optional.of(workout));
-        when(planRepository.findById(50L)).thenReturn(Optional.of(plan));
-        when(workoutRepository.saveAndFlush(any(TrainingWorkout.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(workoutRepository.countByPlanIdAndStatusNotIn(eq(50L), anyList())).thenReturn(2L);
-        when(lotRepository.findById(602L)).thenReturn(Optional.of(lot));
-        when(workoutRepository.countByLotIdAndStatusNotIn(eq(602L), anyList())).thenReturn(1L); // còn 1 buổi chưa xong
-
-        // Act
-        planService.completeWorkout(workoutId, req, trainerUser);
-
-        // Assert
-        assertEquals(LotStatus.SCHEDULED, lot.getStatus(),
-                "Lot vẫn phải giữ SCHEDULED vì còn buổi tập của ngựa khác chưa hoàn thành");
-        verify(lotRepository, never()).save(lot);
+                () -> planService.createPlan(request(10L, LocalDate.of(2026, 10, 5), 1L), trainerUser));
+        assertTrue(ex.getMessage().contains("Schedule conflict"));
+        verify(planRepository, never()).saveAllAndFlush(anyList());
     }
 
     // =================================================================
-    // reassignFutureWorkoutsToGroom — ĐỒNG BỘ GROOM KHI ĐỔI CHUỒNG
+    // activateStartedPlans
     // =================================================================
 
-    /** Dựng một buổi tập tương lai. */
-    private TrainingWorkout futureWorkout(Long id, Long lotId, Long horseId, Long groomId) {
-        TrainingWorkout w = new TrainingWorkout();
-        w.setId(id);
-        w.setLotId(lotId);
-        w.setHorseId(horseId);
-        w.setAssignedToId(groomId);
-        w.setStatus(WorkoutStatus.SCHEDULED);
-        return w;
-    }
-
     @Test
-    @DisplayName("Ngựa chưa có kế hoạch nào: trả 0, không ghi gì")
-    void testReassign_NoFutureWorkouts_ReturnsZero() {
-        when(workoutRepository.findFutureScheduledByHorse(eq(77L), any(LocalDate.class)))
-                .thenReturn(List.of());
-
-        int moved = planService.reassignFutureWorkoutsToGroom(77L, 5L);
-
-        assertEquals(0, moved);
-        verify(workoutRepository, never()).saveAll(anyList());
-    }
-
-    @Test
-    @DisplayName("Không xung đột: mọi buổi tương lai chuyển sang Groom mới")
-    void testReassign_NoConflict_UpdatesAll() {
-        TrainingWorkout w1 = futureWorkout(101L, 37L, 77L, 4L);
-        TrainingWorkout w2 = futureWorkout(102L, 38L, 77L, 4L);
-
-        when(workoutRepository.findFutureScheduledByHorse(eq(77L), any(LocalDate.class)))
-                .thenReturn(List.of(w1, w2));
-        when(workoutRepository.existsByLotIdAndAssignedToIdAndHorseIdNotAndStatusNot(
-                anyLong(), eq(5L), eq(77L), eq(WorkoutStatus.CANCELLED)))
-                .thenReturn(false);
-
-        int moved = planService.reassignFutureWorkoutsToGroom(77L, 5L);
-
-        assertEquals(2, moved);
-        assertEquals(5L, w1.getAssignedToId());
-        assertEquals(5L, w2.getAssignedToId());
-        verify(workoutRepository).saveAll(anyList());
-    }
-
-    @Test
-    @DisplayName("groomId = null: BỎ QUA kiểm tra nhưng VẪN ghi null -> 'chưa phân công'")
-    void testReassign_NullGroom_StillWritesNull() {
-        TrainingWorkout w1 = futureWorkout(101L, 37L, 77L, 4L);
-
-        when(workoutRepository.findFutureScheduledByHorse(eq(77L), any(LocalDate.class)))
-                .thenReturn(List.of(w1));
-
-        int moved = planService.reassignFutureWorkoutsToGroom(77L, null);
-
-        assertEquals(1, moved);
-        assertNull(w1.getAssignedToId(),
-                "Khối if(newGroomId != null) chỉ bọc bước KIỂM TRA, bước ghi luôn chạy");
-        verify(workoutRepository).saveAll(anyList());
-        // Không có người thì không thể trùng với ai -> không được gọi kiểm tra
-        verify(workoutRepository, never())
-                .existsByLotIdAndAssignedToIdAndHorseIdNotAndStatusNot(
-                        anyLong(), anyLong(), anyLong(), any());
-    }
-
-    @Test
-    @DisplayName("BR-09: Groom mới đã có con khác trong cùng lot -> ném lỗi, không ghi")
-    void testReassign_Br09Conflict_Throws() {
-        TrainingWorkout moving = futureWorkout(101L, 37L, 77L, 4L);
-
-        TrainingLot lot = new TrainingLot();
-        lot.setId(37L);
-        lot.setLotDate(LocalDate.of(2026, 11, 2));
-        lot.setStartTime(LocalTime.of(6, 0));
-
-        TrainingWorkout rival = futureWorkout(200L, 37L, 9L, 5L);
-
-        Horse rivalHorse = new Horse();
-        rivalHorse.setId(9L);
-        rivalHorse.setName("Red Fox");
-
-        when(workoutRepository.findFutureScheduledByHorse(eq(77L), any(LocalDate.class)))
-                .thenReturn(List.of(moving));
-        when(workoutRepository.existsByLotIdAndAssignedToIdAndHorseIdNotAndStatusNot(
-                37L, 5L, 77L, WorkoutStatus.CANCELLED)).thenReturn(true);
-        when(lotRepository.findById(37L)).thenReturn(Optional.of(lot));
-        when(workoutRepository.findByLotIdAndStatusNot(37L, WorkoutStatus.CANCELLED))
-                .thenReturn(List.of(moving, rival));
-        when(horseRepository.findById(9L)).thenReturn(Optional.of(rivalHorse));
-
-        IllegalStateException ex = assertThrows(IllegalStateException.class,
-                () -> planService.reassignFutureWorkoutsToGroom(77L, 5L));
-
-        // Thông báo phải đủ để người dùng tự xử lý: ngày, giờ, lot nào, con nào
-        assertTrue(ex.getMessage().contains("BR-09"));
-        assertTrue(ex.getMessage().contains("2026-11-02"));
-        assertTrue(ex.getMessage().contains("Red Fox"));
-
-        assertEquals(4L, moving.getAssignedToId(), "Vướng lỗi thì không được ghi đè");
-        verify(workoutRepository, never()).saveAll(anyList());
-    }
-
-    @Test
-    @DisplayName("BR-09: gom TẤT CẢ lot bị vướng vào một thông báo, không dừng ở cái đầu")
-    void testReassign_MultipleConflicts_ListsAll() {
-        TrainingWorkout w1 = futureWorkout(101L, 37L, 77L, 4L);
-        TrainingWorkout w2 = futureWorkout(102L, 38L, 77L, 4L);
-
-        TrainingLot lot37 = new TrainingLot();
-        lot37.setId(37L);
-        lot37.setLotDate(LocalDate.of(2026, 11, 2));
-        lot37.setStartTime(LocalTime.of(6, 0));
-
-        TrainingLot lot38 = new TrainingLot();
-        lot38.setId(38L);
-        lot38.setLotDate(LocalDate.of(2026, 11, 4));
-        lot38.setStartTime(LocalTime.of(6, 0));
-
-        Horse rivalHorse = new Horse();
-        rivalHorse.setId(9L);
-        rivalHorse.setName("Red Fox");
-
-        when(workoutRepository.findFutureScheduledByHorse(eq(77L), any(LocalDate.class)))
-                .thenReturn(List.of(w1, w2));
-        when(workoutRepository.existsByLotIdAndAssignedToIdAndHorseIdNotAndStatusNot(
-                anyLong(), eq(5L), eq(77L), eq(WorkoutStatus.CANCELLED))).thenReturn(true);
-        when(lotRepository.findById(37L)).thenReturn(Optional.of(lot37));
-        when(lotRepository.findById(38L)).thenReturn(Optional.of(lot38));
-        when(workoutRepository.findByLotIdAndStatusNot(anyLong(), eq(WorkoutStatus.CANCELLED)))
-                .thenReturn(List.of(futureWorkout(200L, 37L, 9L, 5L)));
-        when(horseRepository.findById(9L)).thenReturn(Optional.of(rivalHorse));
-
-        IllegalStateException ex = assertThrows(IllegalStateException.class,
-                () -> planService.reassignFutureWorkoutsToGroom(77L, 5L));
-
-        assertTrue(ex.getMessage().contains("2026-11-02"));
-        assertTrue(ex.getMessage().contains("2026-11-04"),
-                "Phải liệt kê đủ để người dùng sửa một lần, không phải sửa từng cái rồi thử lại");
-    }
-
-    // =================================================================
-    // VÒNG ĐỜI TRẠNG THÁI KẾ HOẠCH
-    // =================================================================
-
-    /**
-     * Dựng bối cảnh đóng một buổi tập.
-     *
-     * @param remainingAfter số buổi CÒN LẠI sau khi đóng buổi này.
-     *                       0 = đây là buổi cuối của khoá.
-     */
-    private HorseTrainingPlan setUpWorkoutScenario(TrainingPlanStatus planStatus,
-                                                   long remainingAfter) {
-        HorseTrainingPlan plan = new HorseTrainingPlan();
-        plan.setId(27L);
-        plan.setTrainerId(9L);
-        plan.setStatus(planStatus);
-
-        TrainingWorkout workout = futureWorkout(101L, 71L, 15L, 11L);
-        workout.setPlanId(27L);
-
-        TrainingLot lot = new TrainingLot();
-        lot.setId(71L);
-        lot.setSubjectId(1L);
-
-        Subject subject = new Subject();
-        subject.setId(1L);
-        subject.setName("Chạy bền");
-
-        when(workoutRepository.findById(101L)).thenReturn(Optional.of(workout));
-        when(planRepository.findById(27L)).thenReturn(Optional.of(plan));
-        when(workoutRepository.saveAndFlush(any(TrainingWorkout.class)))
-                .thenAnswer(i -> i.getArgument(0));
-        when(workoutRepository.countByPlanIdAndStatusNotIn(eq(27L), anyList()))
-                .thenReturn(remainingAfter);
-        when(lotRepository.findById(71L)).thenReturn(Optional.of(lot));
-        when(subjectRepository.findById(1L)).thenReturn(Optional.of(subject));
-
-        return plan;
-    }
-
-    @Test
-    @DisplayName("Kế hoạch UPCOMING vẫn đóng được khi hoàn thành buổi cuối")
-    void testCompleteWorkout_UpcomingPlan_StillCompletes() {
-        HorseTrainingPlan plan = setUpWorkoutScenario(TrainingPlanStatus.UPCOMING, 0L);
-
-        planService.completeWorkout(101L, new CompleteWorkoutRequest(), trainerUser);
-
-        // Trước đây điều kiện "status == ACTIVE" khiến mọi kế hoạch tạo cho
-        // ngày tương lai KHÔNG BAO GIỜ đóng được, vì không gì chuyển chúng
-        // sang ACTIVE cả.
-        assertEquals(TrainingPlanStatus.COMPLETED, plan.getStatus());
-        verify(planRepository).save(plan);
-    }
-
-    @Test
-    @DisplayName("Kế hoạch ACTIVE hoàn thành buổi cuối -> COMPLETED")
-    void testCompleteWorkout_ActivePlan_Completes() {
-        HorseTrainingPlan plan = setUpWorkoutScenario(TrainingPlanStatus.ACTIVE, 0L);
-
-        planService.completeWorkout(101L, new CompleteWorkoutRequest(), trainerUser);
-
-        assertEquals(TrainingPlanStatus.COMPLETED, plan.getStatus());
-    }
-
-    @Test
-    @DisplayName("Còn buổi chưa xong: kế hoạch UPCOMING chuyển sang ACTIVE, chưa đóng")
-    void testCompleteWorkout_StillRemaining_BecomesActiveNotCompleted() {
-        HorseTrainingPlan plan = setUpWorkoutScenario(TrainingPlanStatus.UPCOMING, 5L);
-
-        planService.completeWorkout(101L, new CompleteWorkoutRequest(), trainerUser);
-
-        assertEquals(TrainingPlanStatus.ACTIVE, plan.getStatus(),
-                "Đóng được một buổi nghĩa là khoá đã bắt đầu");
-    }
-
-    @Test
-    @DisplayName("activateStartedPlans: chuyển kế hoạch đã tới ngày bắt đầu sang ACTIVE")
+    @DisplayName("activateStartedPlans: moves plans whose start date has arrived to ACTIVE")
     void testActivateStartedPlans() {
         HorseTrainingPlan p1 = new HorseTrainingPlan();
         p1.setId(1L);
@@ -964,7 +383,7 @@ class HorseTrainingPlanServiceTest {
     }
 
     @Test
-    @DisplayName("activateStartedPlans: không có kế hoạch nào tới hạn thì không ghi DB")
+    @DisplayName("activateStartedPlans: nothing due means nothing is written")
     void testActivateStartedPlans_NothingDue() {
         LocalDate today = LocalDate.of(2026, 11, 2);
         when(planRepository.findByStatusAndStartDateLessThanEqual(
@@ -975,255 +394,159 @@ class HorseTrainingPlanServiceTest {
     }
 
     // =================================================================
-    // lotOccupancy — cho thấy cơ chế ghép nhóm đang hoạt động
+    // Plan list
     // =================================================================
 
     @Test
-    @DisplayName("Chi tiết kế hoạch: mỗi buổi kèm số chiến mã trong lot, đếm bằng MỘT truy vấn")
-    void testGetPlanById_FillsLotOccupancy() {
+    @DisplayName("Plan list: a head trainer is always filtered to their own plans, even with a horseId")
+    void testGetPlanSummaries_TrainerSeesOnlyOwnPlans() {
+        when(planRepository.findPlanSummaries(9L, 15L)).thenReturn(List.of());
+
+        List<PlanSummaryResponse> result = planService.getPlanSummaries(15L, trainerUser);
+
+        assertTrue(result.isEmpty());
+        verify(planRepository).findPlanSummaries(9L, 15L);
+    }
+
+    @Test
+    @DisplayName("Plan list: a manager sees every trainer's plans")
+    void testGetPlanSummaries_ManagerSeesAll() {
+        AuthenticatedUser manager = new AuthenticatedUser(1L, "manager@example.com", "CLUB_MANAGER");
+        when(planRepository.findPlanSummaries(null, null)).thenReturn(List.of());
+
+        planService.getPlanSummaries(null, manager);
+
+        verify(planRepository).findPlanSummaries(null, null);
+    }
+
+    // =================================================================
+    // Plan detail and who may open it
+    // =================================================================
+
+    private HorseTrainingPlan plan(Long id, Long trainerId) {
         HorseTrainingPlan plan = new HorseTrainingPlan();
-        plan.setId(27L);
+        plan.setId(id);
         plan.setHorseId(15L);
-
-        TrainingLot lot71 = new TrainingLot();
-        lot71.setId(71L);
-        lot71.setSubjectId(1L);
-        lot71.setLotDate(LocalDate.of(2026, 12, 7));
-        lot71.setStartTime(LocalTime.of(6, 0));
-        lot71.setEndTime(LocalTime.of(7, 30));
-
-        TrainingLot lot72 = new TrainingLot();
-        lot72.setId(72L);
-        lot72.setSubjectId(1L);
-        lot72.setLotDate(LocalDate.of(2026, 12, 9));
-        lot72.setStartTime(LocalTime.of(7, 30));
-        lot72.setEndTime(LocalTime.of(9, 0));
-
-        Subject subject = new Subject();
-        subject.setId(1L);
-        subject.setName("Khởi động & Chạy bền nhịp đều");
-
-        when(planRepository.findById(27L)).thenReturn(Optional.of(plan));
-        when(workoutRepository.findByPlanIdWithLot(27L)).thenReturn(List.of(
-                new Object[]{futureWorkout(101L, 71L, 15L, 11L), lot71},
-                new Object[]{futureWorkout(102L, 72L, 15L, 11L), lot72}));
-        when(subjectRepository.findById(1L)).thenReturn(Optional.of(subject));
-        when(workoutRepository.countActiveByLotIds(anySet())).thenReturn(List.of(
-                new Object[]{71L, 6L},
-                new Object[]{72L, 1L}));
-
-        HorseTrainingPlanDetailResponse res = planService.getPlanById(27L);
-
-        assertEquals(6, res.getWorkouts().get(0).getLotOccupancy(),
-                "Lot 71 đầy 6 con -> giao diện hiện 'chung với 5 chiến mã khác'");
-        assertEquals(1, res.getWorkouts().get(1).getLotOccupancy(),
-                "Lot 72 chỉ 1 con -> không hiện chú thích chung lot");
-
-        // MỘT truy vấn gom cho cả kế hoạch, không phải mỗi buổi một truy vấn
-        verify(workoutRepository, times(1)).countActiveByLotIds(anySet());
-    }
-
-    // =================================================================
-    // Nhãn gợi ý nhóm
-    // =================================================================
-
-    @Test
-    @DisplayName("Chuyển sang chuồng CÙNG Groom: không báo xung đột giả với chính mình")
-    void testReassign_SameGroom_NoSelfConflict() {
-        TrainingWorkout w1 = futureWorkout(101L, 37L, 77L, 4L);
-
-        when(workoutRepository.findFutureScheduledByHorse(eq(77L), any(LocalDate.class)))
-                .thenReturn(List.of(w1));
-        // Mệnh đề HorseIdNot loại chính con ngựa đang chuyển ra khỏi phép đếm
-        when(workoutRepository.existsByLotIdAndAssignedToIdAndHorseIdNotAndStatusNot(
-                37L, 4L, 77L, WorkoutStatus.CANCELLED)).thenReturn(false);
-
-        int moved = planService.reassignFutureWorkoutsToGroom(77L, 4L);
-
-        assertEquals(1, moved);
-        assertEquals(4L, w1.getAssignedToId());
-    }
-
-    // =================================================================
-    // ĐỢT 7 TESTS: TIẾN ĐỘ, BIỂU ĐỒ THỂ LỰC & CẢNH BÁO
-    // =================================================================
-
-    @Test
-    @DisplayName("Đợt 7.1: Lấy chuỗi dữ liệu thể lực (fitness-trend) theo thời gian tăng dần")
-    void testGetFitnessTrend_Success() {
-        Long horseId = 1L;
-        LocalDate d1 = LocalDate.of(2026, 9, 1);
-        LocalDate d2 = LocalDate.of(2026, 9, 3);
-
-        TrainingWorkout w1 = new TrainingWorkout();
-        w1.setId(101L);
-        w1.setHorseId(horseId);
-        w1.setLotId(10L);
-        w1.setStatus(WorkoutStatus.COMPLETED);
-        w1.setActualDistanceMeters(java.math.BigDecimal.valueOf(1000));
-        w1.setAverageSpeedKmh(java.math.BigDecimal.valueOf(40.0));
-        w1.setAverageHeartRate(135);
-        w1.setPerformanceRating(7);
-
-        TrainingLot l1 = new TrainingLot();
-        l1.setId(10L);
-        l1.setSubjectId(50L);
-        l1.setLotDate(d1);
-
-        TrainingWorkout w2 = new TrainingWorkout();
-        w2.setId(102L);
-        w2.setHorseId(horseId);
-        w2.setLotId(11L);
-        w2.setStatus(WorkoutStatus.COMPLETED);
-        w2.setActualDistanceMeters(java.math.BigDecimal.valueOf(1200));
-        w2.setAverageSpeedKmh(java.math.BigDecimal.valueOf(45.0));
-        w2.setAverageHeartRate(145);
-        w2.setPerformanceRating(9);
-
-        TrainingLot l2 = new TrainingLot();
-        l2.setId(11L);
-        l2.setSubjectId(50L);
-        l2.setLotDate(d2);
-
-        Subject subject = new Subject();
-        subject.setId(50L);
-        subject.setName("Phi nước đại");
-        when(subjectRepository.findById(50L)).thenReturn(Optional.of(subject));
-
-        // Bộ lọc ngày giờ nằm trong SQL, nên service luôn truyền đủ 3 tham số
-        // (bỏ trống from/to thì dùng mốc bao trùm 1900–2999).
-        when(workoutRepository.findCompletedWorkoutsWithLotAsc(
-                eq(horseId), any(LocalDate.class), any(LocalDate.class)))
-                .thenReturn(List.<Object[]>of(new Object[]{w1, l1}, new Object[]{w2, l2}));
-
-        List<HorseFitnessTrendItemResponse> result = planService.getFitnessTrend(horseId, null, null);
-
-        assertEquals(2, result.size());
-        assertEquals(d1, result.get(0).getDate());
-        assertEquals(d2, result.get(1).getDate());
-        assertEquals("Phi nước đại", result.get(0).getSubjectName());
-        assertEquals(7, result.get(0).getPerformanceRating());
-        assertEquals(9, result.get(1).getPerformanceRating());
-    }
-
-    @Test
-    @DisplayName("Đợt 7.2: Kích hoạt cảnh báo khi nhịp tim max > 220, hồi phục > 100, tụt phong độ, sự cố lặp")
-    void testGetHorseAlerts_MultipleRulesTriggered() {
-        Long horseId = 2L;
-        LocalDate today = LocalDate.now();
-
-        // 3 buổi tập gần nhất: maxHeartRate = 225 (>220), recovery = 110 (>100), phong độ giảm dần 8 -> 6 -> 4
-        TrainingWorkout w1 = new TrainingWorkout(); // Mới nhất
-        w1.setId(201L);
-        w1.setMaxHeartRate(225);
-        w1.setRecoveryHeartRate(110);
-        w1.setPerformanceRating(4);
-        w1.setActualDistanceMeters(java.math.BigDecimal.valueOf(3000));
-        TrainingLot l1 = new TrainingLot();
-        l1.setLotDate(today.minusDays(1));
-
-        TrainingWorkout w2 = new TrainingWorkout(); // Buổi kế trước
-        w2.setId(202L);
-        w2.setMaxHeartRate(200);
-        w2.setRecoveryHeartRate(90);
-        w2.setPerformanceRating(6);
-        w2.setActualDistanceMeters(java.math.BigDecimal.valueOf(1000));
-        TrainingLot l2 = new TrainingLot();
-        l2.setLotDate(today.minusDays(3));
-
-        TrainingWorkout w3 = new TrainingWorkout(); // Buổi trước nữa
-        w3.setId(203L);
-        w3.setMaxHeartRate(195);
-        w3.setRecoveryHeartRate(85);
-        w3.setPerformanceRating(8);
-        w3.setActualDistanceMeters(java.math.BigDecimal.valueOf(1000));
-        TrainingLot l3 = new TrainingLot();
-        l3.setLotDate(today.minusDays(5));
-
-        when(workoutRepository.findCompletedWorkoutsWithLotDesc(eq(horseId)))
-                .thenReturn(List.<Object[]>of(new Object[]{w1, l1}, new Object[]{w2, l2}, new Object[]{w3, l3}));
-
-        // Sự cố: 2 sự cố trong 14 ngày
-        when(incidentReportRepository.countByHorseIdAndReportedAtAfter(eq(horseId), any(LocalDateTime.class)))
-                .thenReturn(2L);
-
-        List<HorseAlertResponse> alerts = planService.getHorseAlerts(horseId);
-
-        assertNotNull(alerts);
-        assertTrue(alerts.stream().anyMatch(a -> "MAX_HEART_RATE_EXCEEDED".equals(a.getRuleCode())),
-                "Phải có cảnh báo nhịp tim tối đa");
-        assertTrue(alerts.stream().anyMatch(a -> "POOR_RECOVERY_HEART_RATE".equals(a.getRuleCode())),
-                "Phải có cảnh báo hồi phục tim kém");
-        assertTrue(alerts.stream().anyMatch(a -> "CONSECUTIVE_PERFORMANCE_DROP".equals(a.getRuleCode())),
-                "Phải có cảnh báo phong độ tụt liên tiếp");
-        assertTrue(alerts.stream().anyMatch(a -> "REPEATED_INCIDENTS".equals(a.getRuleCode())),
-                "Phải có cảnh báo sự cố lặp lại từ Groom");
-    }
-
-    @Test
-    @DisplayName("Đợt 7.3: Bảng tiến độ Dashboard toàn khu cho Trainer phụ trách")
-    void testGetTrainerDashboard_Success() {
-        Long trainerId = 9L;
-        AuthenticatedUser trainer = new AuthenticatedUser(trainerId, "trainer@example.com", "HEAD_TRAINER");
-
-        Area area = new Area();
-        area.setId(10L);
-        area.setTrainerId(trainerId);
-        when(areaRepository.findAll()).thenReturn(List.of(area));
-
-        StableStall stall = new StableStall();
-        stall.setId(100L);
-        stall.setAreaId(10L);
-        stall.setStallCode("A-01");
-        when(stableStallRepository.findAll()).thenReturn(List.of(stall));
-
-        Horse horse = new Horse();
-        horse.setId(50L);
-        horse.setName("Thần Gió");
-        horse.setBreed("Thoroughbred");
-        horse.setCurrentStallId(100L);
-        when(horseRepository.findAll()).thenReturn(List.of(horse));
-
-        Course course = new Course();
-        course.setId(5L);
-        course.setName("Khoá bứt tốc");
-        course.setTotalSessions(10);
-        when(courseRepository.findAll()).thenReturn(List.of(course));
-
-        HorseTrainingPlan plan = new HorseTrainingPlan();
-        plan.setId(700L);
         plan.setTrainerId(trainerId);
-        plan.setHorseId(50L);
-        plan.setCourseId(5L);
-        plan.setStatus(TrainingPlanStatus.ACTIVE);
-        when(planRepository.findAll()).thenReturn(List.of(plan));
+        return plan;
+    }
 
-        TrainingWorkout w = new TrainingWorkout();
-        w.setId(1L);
-        w.setStatus(WorkoutStatus.COMPLETED);
-        w.setPerformanceRating(8);
+    @Test
+    @DisplayName("Plan detail: the trainer who owns the plan sees names and workouts")
+    void testGetPlanById_Trainer_Success() {
+        when(planRepository.findById(27L)).thenReturn(Optional.of(plan(27L, 9L)));
+        when(planRepository.findPlanNames(27L)).thenReturn(Optional.of(new PlanNamesRow("Wind God", "Sprint course")));
+        when(workoutService.buildWorkoutItems(27L)).thenReturn(List.of());
 
-        // Số buổi hoàn thành giờ lấy từ MỘT truy vấn gom cho mọi kế hoạch,
-        // thay vì gọi findByPlanIdOrderByIdAsc trong vòng lặp qua từng con ngựa.
-        when(workoutRepository.countByPlanIdsGroupedByStatus(anySet()))
-                .thenReturn(List.<Object[]>of(new Object[]{700L, WorkoutStatus.COMPLETED, 1L}));
+        HorseTrainingPlanDetailResponse res = planService.getPlanById(27L, trainerUser);
 
-        TrainingLot lot = new TrainingLot();
-        lot.setLotDate(LocalDate.now());
-        when(workoutRepository.findCompletedWorkoutsWithLotDesc(eq(50L)))
-                .thenReturn(List.<Object[]>of(new Object[]{w, lot}));
+        assertEquals("Wind God", res.getHorseName());
+        assertEquals("Sprint course", res.getCourseName());
+    }
 
-        List<TrainerDashboardHorseResponse> dashboard = planService.getTrainerDashboard(trainer);
+    @Test
+    @DisplayName("Plan detail: a trainer cannot open another trainer's plan (reported as not found)")
+    void testGetPlanById_OtherTrainer_NotFound() {
+        when(planRepository.findById(27L)).thenReturn(Optional.of(plan(27L, 888L)));
 
-        assertNotNull(dashboard);
-        assertEquals(1, dashboard.size());
-        TrainerDashboardHorseResponse item = dashboard.get(0);
-        assertEquals("Thần Gió", item.getHorseName());
-        assertEquals("A-01", item.getStallCode());
-        assertEquals("Khoá bứt tốc", item.getCourseName());
-        assertEquals(1, item.getCompletedSessions());
-        assertEquals(10, item.getTotalSessions());
-        assertEquals(10.0, item.getProgressPercent());
-        assertEquals(8, item.getLatestPerformanceRating());
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> planService.getPlanById(27L, trainerUser));
+        assertTrue(ex.getMessage().contains("not found"));
+        verifyNoInteractions(workoutService);
+    }
+
+    @Test
+    @DisplayName("Plan detail: an owner can open a plan of their own horse")
+    void testGetPlanById_Owner_OwnHorse_Success() {
+        AuthenticatedUser owner = new AuthenticatedUser(5L, "owner@example.com", "HORSE_OWNER");
+        when(planRepository.findById(27L)).thenReturn(Optional.of(plan(27L, 9L)));
+        when(planRepository.existsPlanOfOwner(27L, 5L)).thenReturn(true);
+        when(planRepository.findPlanNames(27L)).thenReturn(Optional.of(new PlanNamesRow("Wind God", "Sprint course")));
+        when(workoutService.buildWorkoutItems(27L)).thenReturn(List.of());
+
+        assertNotNull(planService.getPlanById(27L, owner));
+    }
+
+    @Test
+    @DisplayName("Plan detail: an owner cannot open a plan of someone else's horse")
+    void testGetPlanById_Owner_OtherHorse_NotFound() {
+        AuthenticatedUser owner = new AuthenticatedUser(5L, "owner@example.com", "HORSE_OWNER");
+        when(planRepository.findById(27L)).thenReturn(Optional.of(plan(27L, 9L)));
+        when(planRepository.existsPlanOfOwner(27L, 5L)).thenReturn(false);
+
+        assertThrows(RuntimeException.class, () -> planService.getPlanById(27L, owner));
+        verifyNoInteractions(workoutService);
+    }
+
+    @Test
+    @DisplayName("Plan detail: a vet can open any plan")
+    void testGetPlanById_Vet_AnyPlan() {
+        AuthenticatedUser vet = new AuthenticatedUser(3L, "vet@example.com", "VETERINARIAN");
+        when(planRepository.findById(27L)).thenReturn(Optional.of(plan(27L, 888L)));
+        when(planRepository.findPlanNames(27L)).thenReturn(Optional.of(new PlanNamesRow("Wind God", "Sprint course")));
+        when(workoutService.buildWorkoutItems(27L)).thenReturn(List.of());
+
+        assertNotNull(planService.getPlanById(27L, vet));
+        verify(planRepository, never()).existsPlanOfOwner(any(), any());
+    }
+
+    @Test
+    @DisplayName("Plan detail: an unknown plan id is not found")
+    void testGetPlanById_Unknown_NotFound() {
+        when(planRepository.findById(404L)).thenReturn(Optional.empty());
+
+        assertThrows(RuntimeException.class, () -> planService.getPlanById(404L, trainerUser));
+    }
+
+    // =================================================================
+    // Joinable cohorts
+    // =================================================================
+
+    @Test
+    @DisplayName("Cohorts: a cohort that has not started yet is joined for the whole course")
+    void testGetJoinableCohorts_UpcomingCohort() {
+        LocalDate start = LocalDate.now().plusDays(10);
+        when(courseRepository.findById(5L)).thenReturn(Optional.of(course(5L, 12)));
+        when(courseSubjectRepository.countByCourseId(5L)).thenReturn(3L);
+        when(planRepository.findJoinableCohorts(9L, 5L)).thenReturn(List.of(
+                new JoinableCohortRow(start, Set.of(TrainingDay.MONDAY, TrainingDay.FRIDAY), 4L)));
+
+        List<JoinableCohortResponse> cohorts = planService.getJoinableCohorts(5L, trainerUser);
+
+        assertEquals(1, cohorts.size());
+        assertEquals("UPCOMING", cohorts.get(0).getCohortStatus());
+        assertEquals(12, cohorts.get(0).getSharedSessions());
+        assertEquals(4, cohorts.get(0).getHorseCount());
+        assertEquals(start, cohorts.get(0).getSuggestedStartDate());
+        assertEquals("Train together for all 12/12 sessions", cohorts.get(0).getNote());
+    }
+
+    @Test
+    @DisplayName("Cohorts: a course without subjects has no cohorts")
+    void testGetJoinableCohorts_NoSubjects() {
+        when(courseRepository.findById(5L)).thenReturn(Optional.of(course(5L, 12)));
+        when(courseSubjectRepository.countByCourseId(5L)).thenReturn(0L);
+
+        assertTrue(planService.getJoinableCohorts(5L, trainerUser).isEmpty());
+        verify(planRepository, never()).findJoinableCohorts(any(), any());
+    }
+
+    @Test
+    @DisplayName("Cohorts: an old plan without training days is skipped")
+    void testGetJoinableCohorts_SkipsPlansWithoutTrainingDays() {
+        when(courseRepository.findById(5L)).thenReturn(Optional.of(course(5L, 12)));
+        when(courseSubjectRepository.countByCourseId(5L)).thenReturn(3L);
+        when(planRepository.findJoinableCohorts(9L, 5L)).thenReturn(List.of(
+                new JoinableCohortRow(LocalDate.now().plusDays(3), Set.of(), 2L)));
+
+        assertTrue(planService.getJoinableCohorts(5L, trainerUser).isEmpty());
+    }
+
+    @Test
+    @DisplayName("calculateEndDate: last workout date of a Mon/Wed course of 2 sessions")
+    void testCalculateEndDate() {
+        LocalDate end = HorseTrainingPlanService.calculateEndDate(
+                LocalDate.of(2026, 10, 5), Set.of(TrainingDay.MONDAY, TrainingDay.WEDNESDAY), 2);
+
+        assertEquals(LocalDate.of(2026, 10, 7), end);
     }
 }

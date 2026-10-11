@@ -11,15 +11,23 @@ import { EmptyState, ListSkeleton } from '@/components/ui/states';
 import { trainingApi } from '../services/trainingService';
 import type { Subject, SubjectCategory, CreateSubjectRequest, SurfaceType, IntensityLevel } from '../types';
 
+const CATEGORY_OPTIONS: { value: SubjectCategory; label: string }[] = [
+  { value: 'ENDURANCE', label: 'Fitness & endurance' },
+  { value: 'SPEED', label: 'Speed & sprint' },
+  { value: 'GATE_START', label: 'Starting-gate technique' },
+  { value: 'RECOVERY', label: 'Recovery & cool-down' },
+];
+
+const CATEGORY_LABELS = new Map(CATEGORY_OPTIONS.map((c) => [c.value, c.label]));
+
 export function SubjectList() {
   const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [categories, setCategories] = useState<SubjectCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // Form state
   const [showForm, setShowForm] = useState(false);
-  const [categoryId, setCategoryId] = useState<number | ''>('');
+  const [category, setCategory] = useState<SubjectCategory>('ENDURANCE');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [surfaceType, setSurfaceType] = useState<SurfaceType>('TURF');
@@ -33,22 +41,14 @@ export function SubjectList() {
     try {
       setLoading(true);
       setError(null);
-      const [subs, cats] = await Promise.all([
-        trainingApi.getSubjects(),
-        trainingApi.getCategories(),
-      ]);
-      setSubjects(subs);
-      setCategories(cats);
-      if (cats.length > 0 && categoryId === '') {
-        setCategoryId(cats[0].id);
-      }
+      setSubjects(await trainingApi.getSubjects());
     } catch (err) {
       console.error('Failed to load exercises:', err);
       setError('Unable to load the exercise library.');
     } finally {
       setLoading(false);
     }
-  }, [categoryId]);
+  }, []);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -57,8 +57,8 @@ export function SubjectList() {
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim() || !categoryId) {
-      setFormError('Enter an exercise name and select a category.');
+    if (!name.trim()) {
+      setFormError('Enter an exercise name.');
       return;
     }
     // Block durations over 240 minutes (golden-hour window 06:00 - 10:00)
@@ -71,7 +71,7 @@ export function SubjectList() {
     setSubmitting(true);
     try {
       const payload: CreateSubjectRequest = {
-        categoryId: Number(categoryId),
+        category,
         name: name.trim(),
         description: description.trim() || undefined,
         surfaceType,
@@ -90,8 +90,6 @@ export function SubjectList() {
       setSubmitting(false);
     }
   }
-
-  const categoryMap = new Map(categories.map((c) => [c.id, c.name]));
 
   if (loading) return <ListSkeleton rows={4} />;
 
@@ -146,12 +144,12 @@ export function SubjectList() {
               <div>
                 <FormField label="Category" required>
                   <Select
-                    value={categoryId}
-                    onChange={(e) => setCategoryId(e.target.value ? Number(e.target.value) : '')}
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value as SubjectCategory)}
                   >
-                    {categories.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
+                    {CATEGORY_OPTIONS.map((c) => (
+                      <option key={c.value} value={c.value}>
+                        {c.label}
                       </option>
                     ))}
                   </Select>
@@ -256,7 +254,7 @@ export function SubjectList() {
                     {sub.name}
                   </h4>
                   <div className="text-xs text-[var(--color-text-muted)]">
-                    {categoryMap.get(sub.categoryId) || `Category #${sub.categoryId}`}
+                    {CATEGORY_LABELS.get(sub.category) ?? sub.category}
                   </div>
                 </div>
                 <Pill

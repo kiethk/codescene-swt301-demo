@@ -10,15 +10,12 @@ export type TrainingDay =
   | 'SATURDAY'
   | 'SUNDAY';
 
-export interface SubjectCategory {
-  id: number;
-  name: string;
-  description: string | null;
-}
+/** Group of a subject. A plain enum like surface type and intensity: it has no table of its own. */
+export type SubjectCategory = 'ENDURANCE' | 'SPEED' | 'GATE_START' | 'RECOVERY';
 
 export interface Subject {
   id: number;
-  categoryId: number;
+  category: SubjectCategory;
   name: string;
   description: string | null;
   surfaceType: SurfaceType;
@@ -28,7 +25,7 @@ export interface Subject {
 }
 
 export interface CreateSubjectRequest {
-  categoryId: number;
+  category: SubjectCategory;
   name: string;
   description?: string;
   surfaceType: SurfaceType;

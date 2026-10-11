@@ -30,14 +30,14 @@ class TrainingDecisionServiceTest {
     private CareScheduleRepository careScheduleRepository;
 
     @Mock
-    private HorseTrainingPlanService trainingPlanService;
+    private TrainingWorkoutService workoutService;
 
     private TrainingDecisionService service;
     private Horse horse;
 
     @BeforeEach
     void setUp() {
-        service = new TrainingDecisionService(horseRepository, careScheduleRepository, trainingPlanService);
+        service = new TrainingDecisionService(horseRepository, careScheduleRepository, workoutService);
         horse = new Horse();
         horse.setId(7L);
         horse.setName("Thunder");
@@ -46,18 +46,18 @@ class TrainingDecisionServiceTest {
     }
 
     @Test
-    @DisplayName("block: lưu BLOCKED + lý do và hủy buổi tập tương lai")
+    @DisplayName("block: saves BLOCKED + reason and cancels future workouts")
     void block_setsDecisionAndCancelsFutureTraining() {
         service.block(horse, "Tendon strain");
 
         assertEquals(TrainingDecision.BLOCKED, horse.getTrainingDecision());
         assertEquals("Tendon strain", horse.getTrainingDecisionReason());
         verify(horseRepository).save(horse);
-        verify(trainingPlanService).cancelFutureTrainingForHorse(7L, "Ngựa bị chặn tập: Tendon strain");
+        verify(workoutService).cancelFutureTrainingForHorse(7L, "Horse is blocked from training: Tendon strain");
     }
 
     @Test
-    @DisplayName("allow: về ALLOWED, xóa lý do, không đụng tới kế hoạch")
+    @DisplayName("allow: back to ALLOWED, clears the reason, leaves plans untouched")
     void allow_clearsReason() {
         horse.setTrainingDecision(TrainingDecision.BLOCKED);
         horse.setTrainingDecisionReason("Tendon strain");
@@ -67,17 +67,17 @@ class TrainingDecisionServiceTest {
         assertEquals(TrainingDecision.ALLOWED, horse.getTrainingDecision());
         assertNull(horse.getTrainingDecisionReason());
         verify(horseRepository).save(horse);
-        verifyNoInteractions(trainingPlanService);
+        verifyNoInteractions(workoutService);
     }
 
     @Test
-    @DisplayName("assertCanTrain: ngựa ELIGIBLE + ALLOWED thì qua")
+    @DisplayName("assertCanTrain: an ELIGIBLE + ALLOWED horse passes")
     void assertCanTrain_eligibleAndAllowed_passes() {
         assertDoesNotThrow(() -> service.assertCanTrain(horse));
     }
 
     @Test
-    @DisplayName("assertCanTrain: ngựa chưa được nhận (CANDIDATE) -> 409 HORSE_NOT_ELIGIBLE")
+    @DisplayName("assertCanTrain: a horse not admitted yet (CANDIDATE) -> 409 HORSE_NOT_ELIGIBLE")
     void assertCanTrain_candidate_rejected() {
         horse.setCurrentStatus(HorseStatus.CANDIDATE);
 
@@ -88,7 +88,7 @@ class TrainingDecisionServiceTest {
     }
 
     @Test
-    @DisplayName("assertCanTrain: bị chặn -> 409 TRAINING_BLOCKED, nêu lý do và giờ khám lại")
+    @DisplayName("assertCanTrain: blocked -> 409 TRAINING_BLOCKED with the reason and re-exam time")
     void assertCanTrain_blocked_showsReasonAndNextExam() {
         horse.setTrainingDecision(TrainingDecision.BLOCKED);
         horse.setTrainingDecisionReason("Tendon strain");
@@ -99,18 +99,18 @@ class TrainingDecisionServiceTest {
 
         assertEquals("TRAINING_BLOCKED", ex.getErrorCode());
         assertTrue(ex.getMessage().contains("Tendon strain"));
-        assertTrue(ex.getMessage().contains("khám lại lúc 20/10/2026 14:00"));
+        assertTrue(ex.getMessage().contains("re-examination at 20/10/2026 14:00"));
     }
 
     @Test
-    @DisplayName("assertCanTrain: bị chặn mà không còn lịch khám -> báo 'chưa có lịch khám lại'")
+    @DisplayName("assertCanTrain: blocked with no exam left -> reports no follow-up exam scheduled")
     void assertCanTrain_blockedWithoutNextExam() {
         horse.setTrainingDecision(TrainingDecision.BLOCKED);
         when(careScheduleRepository.findNextExamTime(eq(7L), anyList())).thenReturn(null);
 
         ApiException ex = assertThrows(ApiException.class, () -> service.assertCanTrain(horse));
 
-        assertTrue(ex.getMessage().contains("chưa có lịch khám lại"));
-        assertTrue(ex.getMessage().contains("theo chỉ định của Thú y"));
+        assertTrue(ex.getMessage().contains("no follow-up exam scheduled"));
+        assertTrue(ex.getMessage().contains("as directed by the vet"));
     }
 }

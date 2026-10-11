@@ -25,7 +25,7 @@ import com.rtms.backend.stable.enums.IncidentStatus;
 import com.rtms.backend.stable.repository.GroomIncidentReportRepository;
 import com.rtms.backend.stable.repository.StableStallRepository;
 import com.rtms.backend.training.enums.TrainingDecision;
-import com.rtms.backend.training.service.HorseTrainingPlanService;
+import com.rtms.backend.training.service.TrainingWorkoutService;
 import com.rtms.backend.training.service.TrainingDecisionService;
 
 
@@ -55,7 +55,7 @@ class CareScheduleHardeningTests {
     private VeterinarianProfileRepository profiles;
     private GroomIncidentReportRepository incidents;
     private ApplicationEventPublisher events;
-    private HorseTrainingPlanService trainingPlanService;
+    private TrainingWorkoutService workoutService;
     private NotificationService notificationService;
     private AdmissionApplicationRepository admissionRepository;
     private CareScheduleService service;
@@ -68,7 +68,7 @@ class CareScheduleHardeningTests {
         profiles = mock(VeterinarianProfileRepository.class);
         incidents = mock(GroomIncidentReportRepository.class);
         events = mock(ApplicationEventPublisher.class);
-        trainingPlanService = mock(HorseTrainingPlanService.class);
+        workoutService = mock(TrainingWorkoutService.class);
         notificationService = mock(NotificationService.class);
         admissionRepository = mock(AdmissionApplicationRepository.class);
 
@@ -86,7 +86,7 @@ class CareScheduleHardeningTests {
                 events,
                 mock(EntityManager.class),
                 notificationService,
-                new TrainingDecisionService(horses, schedules, trainingPlanService)
+                new TrainingDecisionService(horses, schedules, workoutService)
         );
 
         when(schedules.save(any())).thenAnswer(invocation -> invocation.getArgument(0));

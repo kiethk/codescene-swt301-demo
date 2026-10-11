@@ -9,6 +9,7 @@ import java.time.LocalDateTime;
 
 /**
  * Đánh giá mức độ sẵn sàng thi đấu của chiến mã.
+ * (A horse racing-readiness assessment.)
  *
  * Dùng cho HAI giai đoạn, phân biệt bằng admissionId:
  *   - admissionId != null : đánh giá trong luồng nhập học
@@ -17,6 +18,9 @@ import java.time.LocalDateTime;
  * Vì sao dùng FK chứ không phải cờ boolean: một ngựa có thể có nhiều đơn
  * nhập học (bị từ chối rồi nộp lại cùng UELN), nên cần biết đánh giá thuộc
  * đơn nào — boolean không trả lời được câu đó.
+ * (Used for TWO stages, told apart by admissionId: admissionId != null is an assessment in the admission flow, admissionId == null is a periodic
+ *  assessment. Why a foreign key and not a boolean flag: one horse can have several admissions (rejected, then resubmitted with the same UELN), so we
+ *  need to know which admission an assessment belongs to, and a boolean cannot answer that.)
  */
 @Entity
 @Table(name = "racing_readiness_assessments")
@@ -33,32 +37,33 @@ public class RacingReadinessAssessment {
     @Column(name = "readiness_status", nullable = false, length = 50)
     private RacingReadinessStatus readinessStatus;
 
-    /** Thang 0–10. NULL ở bước nhập học vì ngựa đang cách ly, không đo được. */
+    /** Thang 0–10. NULL ở bước nhập học vì ngựa đang cách ly, không đo được. (Scale 0-10. NULL at the admission step because the horse is in quarantine and cannot be measured.) */
     @Column(name = "fitness_score")
     private BigDecimal fitnessScore;
 
     // ===== Trainer đánh giá được trong khu cách ly (quan sát + dắt tay) =====
+    // (Things the trainer can assess in quarantine (observation + leading by hand))
 
-    /** Dáng vóc, cấu trúc cơ thể. Thang 0–10. */
+    /** Dáng vóc, cấu trúc cơ thể. Thang 0–10. (Build and body structure. Scale 0-10.) */
     @Column(name = "conformation_score")
     private BigDecimal conformationScore;
 
-    /** Tính nết khi tiếp xúc, dắt tay. Thang 0–10. */
+    /** Tính nết khi tiếp xúc, dắt tay. Thang 0–10. (Temperament when handled and led by hand. Scale 0-10.) */
     @Column(name = "temperament_score")
     private BigDecimal temperamentScore;
 
-    /** Chất lượng bước đi khi dắt bộ/kiệu. Thang 0–10. */
+    /** Chất lượng bước đi khi dắt bộ/kiệu. Thang 0–10. (Quality of the gait when led at walk or trot. Scale 0-10.) */
     @Column(name = "gait_quality_score")
     private BigDecimal gaitQualityScore;
 
-    /** Ước tính số tháng nữa mới đua được — con số Manager dùng để tính chi phí. */
+    /** Ước tính số tháng nữa mới đua được — con số Manager dùng để tính chi phí. (Estimated months until the horse can race: the number the manager uses to estimate cost.) */
     @Column(name = "estimated_months_to_race")
     private Integer estimatedMonthsToRace;
 
     @Column(name = "assessment_date", nullable = false)
     private LocalDate assessmentDate;
 
-    /** Đánh giá định kỳ: +90 ngày. Đánh giá nhập học: NULL (có CHECK ràng buộc). */
+    /** Đánh giá định kỳ: +90 ngày. Đánh giá nhập học: NULL (có CHECK ràng buộc). (Periodic assessment: +90 days. Admission assessment: NULL (enforced by a CHECK constraint).) */
     @Column(name = "valid_until")
     private LocalDate validUntil;
 
@@ -68,7 +73,7 @@ public class RacingReadinessAssessment {
     @Column(name = "trainer_id")
     private Long trainerId;
 
-    /** NULL = đánh giá định kỳ. */
+    /** NULL = đánh giá định kỳ. (NULL = periodic assessment.) */
     @Column(name = "admission_id")
     private Long admissionId;
 

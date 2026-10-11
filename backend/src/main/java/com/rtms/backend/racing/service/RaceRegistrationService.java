@@ -53,13 +53,13 @@ public class RaceRegistrationService {
 
         if (request.getEventDate().isBefore(LocalDate.now())) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_EVENT_DATE",
-                    "Ngày tổ chức cuộc đua không được trong quá khứ");
+                    "Race date must not be in the past");
         }
 
         if (request.getNominationDeadline() != null) {
             if (request.getNominationDeadline().isAfter(request.getEventDate())) {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_DEADLINE",
-                        "Hạn nộp hồ sơ không được sau ngày tổ chức cuộc đua");
+                        "Registration deadline must not be after the race date");
             }
         }
 
@@ -68,7 +68,7 @@ public class RaceRegistrationService {
             sourceUrl = request.getSourceUrl().trim();
             if (!sourceUrl.startsWith("http://") && !sourceUrl.startsWith("https://")) {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_SOURCE_URL",
-                        "Link nguồn cuộc đua phải là đường dẫn HTTP hoặc HTTPS hợp lệ");
+                        "Race source link must be a valid HTTP or HTTPS URL");
             }
         }
 
@@ -130,11 +130,11 @@ public class RaceRegistrationService {
     public RaceRegistrationResponse getVisible(Long id, AuthenticatedUser user) {
         RaceRegistration reg = raceRegistrationRepository.findById(id)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "RESOURCE_NOT_FOUND",
-                        "Không tìm thấy đơn đề cử #" + id));
+                        "Race nomination #" + id + " not found"));
 
         boolean isManager = "CLUB_MANAGER".equalsIgnoreCase(user.getRole()) || "ADMIN".equalsIgnoreCase(user.getRole());
         if (!isManager && !reg.getTrainerId().equals(user.getUserId())) {
-            throw new AccessDeniedException("Bạn không có quyền xem đơn đề cử này");
+            throw new AccessDeniedException("You do not have permission to view this nomination");
         }
 
         Horse horse = horseRepository.findById(reg.getHorseId()).orElse(null);
@@ -147,17 +147,17 @@ public class RaceRegistrationService {
     public RaceRegistrationResponse review(Long id, ReviewRaceRegistrationRequest request, AuthenticatedUser user) {
         RaceRegistration registration = raceRegistrationRepository.findById(id)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "RESOURCE_NOT_FOUND",
-                        "Không tìm thấy đơn đề cử #" + id));
+                        "Race nomination #" + id + " not found"));
 
         if (!"PENDING".equals(registration.getStatus())) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "ALREADY_REVIEWED",
-                    "Đơn đề cử này đã được xét duyệt trước đó");
+                    "This nomination has already been reviewed");
         }
 
         String status = request.getStatus() == null ? "" : request.getStatus().trim().toUpperCase();
         if (!"APPROVED".equals(status) && !"REJECTED".equals(status)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_STATUS",
-                    "Trạng thái phải là APPROVED hoặc REJECTED");
+                    "Status must be APPROVED or REJECTED");
         }
 
         registration.setStatus(status);
@@ -174,23 +174,23 @@ public class RaceRegistrationService {
     private Horse requireManagedHorse(Long horseId, Long trainerId) {
         Horse horse = horseRepository.findById(horseId)
                 .orElseThrow(() -> new ApiException(
-                        HttpStatus.NOT_FOUND, "RESOURCE_NOT_FOUND", "Không tìm thấy ngựa"));
+                        HttpStatus.NOT_FOUND, "RESOURCE_NOT_FOUND", "Horse not found"));
         if (horse.getCurrentStallId() == null) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "HORSE_NOT_ASSIGNED",
-                    "Ngựa chưa được xếp chuồng");
+                    "The horse has not been assigned to a stall");
         }
         StableStall stall = stableStallRepository.findById(horse.getCurrentStallId())
                 .orElseThrow(() -> new ApiException(
-                        HttpStatus.BAD_REQUEST, "INVALID_STALL", "Chuồng của ngựa không tồn tại"));
+                        HttpStatus.BAD_REQUEST, "INVALID_STALL", "The horse stall does not exist"));
         Area area = areaRepository.findById(stall.getAreaId())
                 .orElseThrow(() -> new ApiException(
-                        HttpStatus.BAD_REQUEST, "INVALID_AREA", "Khu của ngựa không tồn tại"));
+                        HttpStatus.BAD_REQUEST, "INVALID_AREA", "The horse area does not exist"));
         if (!trainerId.equals(area.getTrainerId())) {
-            throw new AccessDeniedException("Ngựa không thuộc khu bạn phụ trách");
+            throw new AccessDeniedException("The horse is not in an area you manage");
         }
         if (!horse.canTrain()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "HORSE_NOT_ELIGIBLE",
-                    "Ngựa hiện không thể được đề cử dự đua");
+                    "The horse cannot be nominated for a race right now");
         }
         return horse;
     }

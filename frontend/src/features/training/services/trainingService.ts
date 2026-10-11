@@ -2,7 +2,6 @@ import { apiGet, apiPost } from '@/services/api';
 import type {
   Subject,
   CreateSubjectRequest,
-  SubjectCategory,
   Course,
   CourseDetailResponse,
   CreateCourseRequest,
@@ -67,9 +66,6 @@ export const trainingApi = {
 
   createSubject: async (data: CreateSubjectRequest): Promise<Subject> =>
     (await apiPost<ApiResponse<Subject>>('/api/subjects', data)).data,
-
-  getCategories: async (): Promise<SubjectCategory[]> =>
-    (await apiGet<ApiResponse<SubjectCategory[]>>('/api/subject-categories')).data,
 
   // Courses
   getCourses: async (): Promise<Course[]> =>
