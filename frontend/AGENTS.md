@@ -199,6 +199,7 @@ Import from `@/components/ui`.
 | Menu on click | `DropdownMenu*` |
 | Floating panel on click | `Popover*` |
 | Hint on hover | `Tooltip` |
+| Card picked from a set (stall on a map, slot in a grid) | `SelectableCard` (`selected`, `dimmed`, `empty`) |
 | Card or section container | `Panel` (`tone`, `interactive`), `SectionTitle`, `FieldLabel` |
 | KPI number | `MetricCard` |
 | Progress or distribution bar | `ProgressBar` (`value` / `max`, or stacked `segments`) |
@@ -210,7 +211,8 @@ Import from `@/components/ui`.
 | Result of an action | `toast` from `@/lib/toast` |
 | Loading | `ListSkeleton`, `DetailSkeleton`, `Skeleton`, `Spinner`, `LoadingScreen` |
 | Nothing to show | `EmptyState` |
-| Person / horse avatar | `Avatar` / `HorseAvatar` |
+| Person / horse avatar | `Avatar` / `HorseAvatar` (loads the photo with the access token) |
+| Image stored by the backend | `ProtectedImage` (never a plain `<img>`: file endpoints need the access token); `openProtectedFile` from `@/lib/protectedFile` to open any stored file in a new tab |
 | Icon | `Icon` (inline SVG set; add missing icons to `Icon.tsx`) |
 | Dates, enums, numbers, errors | `formatDate`, `formatDateTime`, `formatEnumLabel`, `formatNumber`, `displayError` from `@/lib/display` |
 
@@ -231,6 +233,14 @@ Every role's admission list and detail use the same blocks from `src/features/ad
 | Main column | `AdmissionDetailTabs` with `AdmissionInfoSection`, `InfoRow`, `InfoGroupTitle` |
 | Documents | `AdmissionDocumentsSection` (includes preview) |
 | Side column cards | `AdmissionSideCard` (`tone` for the role's action card) |
+
+Every role's stable screen uses the same blocks from `src/features/stable/shared/components`:
+
+| Part | Use |
+|---|---|
+| Map | `StableFloorPlan` (`lens`, `ownStallIds` to fade stalls outside the viewer's scope, `cellFooter` for the role's line on each stall) |
+| One stall | `StallCell` (drawn by the floor plan; `stallState` gives the shared dot colour and label) |
+| Side panel | `StallDetailPanel` (`children` for what the role sees, `actions` for what it can do) |
 
 ### Tokens
 

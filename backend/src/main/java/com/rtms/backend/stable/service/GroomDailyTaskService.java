@@ -269,8 +269,8 @@ public class GroomDailyTaskService {
                     w.endTime(),
                     w.horseId(),
                     w.horseName(),
-                    "Buổi tập · " + w.subjectName(),
-                    "Dắt ngựa ra sân, hỗ trợ Trainer, nhận ngựa về sau buổi tập",
+                    "Training session · " + w.subjectName(),
+                    "Lead the horse to the track, assist the trainer, and bring the horse back after the session",
                     w.status().name(),
                     false));                      // Trainer mới là người đóng buổi tập
         }
@@ -283,7 +283,7 @@ public class GroomDailyTaskService {
                     s.getScheduledAt().plusMinutes(s.getDurationMinutes()).toLocalTime(),
                     s.getHorseId(),
                     nameOf(horseNameById, s.getHorseId()),
-                    "Thú y · " + s.getCareType(),
+                    "Veterinary · " + s.getCareType(),
                     s.getDescription(),
                     s.getStatus().name(),
                     false));              // Vet mới là người đóng
@@ -305,14 +305,14 @@ public class GroomDailyTaskService {
     /** Nhãn tiếng Việt cho loại việc SOP. */
     private String toVietnamese(GroomTaskType type) {
         return switch (type) {
-            case FEEDING        -> "Cho ăn";
-            case MUCKING_OUT    -> "Dọn chuồng";
-            case GROOMING       -> "Tắm rửa & chải lông";
-            case HOOF_CARE      -> "Chăm sóc móng";
-            case HEALTH_CHECK   -> "Kiểm tra sức khoẻ";
-            case WORKOUT_ASSIST -> "Hỗ trợ buổi tập";
-            case VET_ASSIST     -> "Hỗ trợ thú y";
-            case SPECIAL_CARE   -> "Chăm sóc đặc biệt";
+            case FEEDING        -> "Feeding";
+            case MUCKING_OUT    -> "Mucking out";
+            case GROOMING       -> "Washing & grooming";
+            case HOOF_CARE      -> "Hoof care";
+            case HEALTH_CHECK   -> "Health check";
+            case WORKOUT_ASSIST -> "Training assistance";
+            case VET_ASSIST     -> "Veterinary assistance";
+            case SPECIAL_CARE   -> "Special care";
         };
     }
 

@@ -8,15 +8,11 @@ import com.rtms.backend.admission.service.AdmissionQueryService;
 import com.rtms.backend.admission.service.OwnerAdmissionService;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.ContentDisposition;
-import org.springframework.http.MediaTypeFactory;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
 
 @RestController
@@ -41,11 +37,7 @@ public class AdmissionDocumentDownloadController {
             admissionQueryService.assertVetAssignedOrManager(id, viewer);
         }
         AdmissionDocument document = service.getDocumentForViewer(id, documentId, viewer);
-        if (document.getFileUrl() != null && !storage.isLocal(document.getFileUrl())) {
-            return ResponseEntity.status(HttpStatus.FOUND)
-                    .location(URI.create(document.getFileUrl()))
-                    .build();
-        }
+        // Local and cloud files are both streamed from here, so the checks above always apply.
         Resource file = storage.load(document.getFileUrl());
         String filename = document.getOriginalFileName() == null
                 ? "admission-document-" + documentId
@@ -55,7 +47,7 @@ public class AdmissionDocumentDownloadController {
                 ? ContentDisposition.inline().filename(filename, StandardCharsets.UTF_8).build()
                 : ContentDisposition.attachment().filename(filename, StandardCharsets.UTF_8).build();
         return ResponseEntity.ok()
-                .contentType(MediaTypeFactory.getMediaType(file).orElse(MediaType.APPLICATION_OCTET_STREAM))
+                .contentType(storage.mediaType(document.getFileUrl()))
                 .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
                 .header("X-Content-Type-Options", "nosniff")
                 .body(file);

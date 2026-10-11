@@ -1,10 +1,9 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { Button, Modal, Notice, Pill } from '@/components/ui';
+import { Button, Modal, Notice, Pill, ProtectedImage } from '@/components/ui';
 import { formatDateTime } from '@/lib/display';
 import type { UrgentAssignmentAlert } from '../types';
-import { admissionsApi } from '../services/api';
 
 interface Props {
   alert: UrgentAssignmentAlert | null;
@@ -62,16 +61,12 @@ export function UrgentAssignmentModal({ alert, onOpenCase }: Props) {
         </section>
 
         {alert.imageUrl && (
-          <a
-            href={admissionsApi.assetUrl(alert.imageUrl)}
-            target="_blank"
-            rel="noreferrer"
-            className="block overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-border)]"
-            aria-label="Open full-size case report image"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={admissionsApi.assetUrl(alert.imageUrl)} alt="Urgent case report" className="max-h-72 w-full object-contain" />
-          </a>
+          <ProtectedImage
+            src={alert.imageUrl}
+            alt="Urgent case report"
+            openOnClick
+            className="max-h-72 w-full object-contain"
+          />
         )}
       </div>
     </Modal>

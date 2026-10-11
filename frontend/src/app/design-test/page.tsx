@@ -25,6 +25,7 @@ import {
   SearchInput,
   SectionTitle,
   SegmentedControl,
+  SelectableCard,
   Select,
   Skeleton,
   Spinner,
@@ -56,6 +57,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 /** Living reference for every shared primitive. Add new primitives here. */
 export default function DesignTestPage() {
   const [role, setRole] = useState<Role>('HEAD_TRAINER');
+  const [selectedCard, setSelectedCard] = useState<'a' | 'b'>('a');
   const [collapsed, setCollapsed] = useState(false);
   const [view, setView] = useState<'week' | 'month'>('week');
   const [status, setStatus] = useState<'ALL' | 'ACTIVE' | 'DONE'>('ALL');
@@ -170,6 +172,14 @@ export default function DesignTestPage() {
             <p className="mt-1 text-sm text-[var(--color-text-secondary)]">Lifts on hover.</p>
           </Panel>
           <MetricCard label="Horses in training" value={42} icon="horse" />
+          <SelectableCard selected={selectedCard === 'a'} onClick={() => setSelectedCard('a')}>
+            <FieldLabel>SelectableCard</FieldLabel>
+            <p className="mt-1 text-sm text-[var(--color-text-secondary)]">Picked from a set; click to select.</p>
+          </SelectableCard>
+          <SelectableCard dimmed empty selected={selectedCard === 'b'} onClick={() => setSelectedCard('b')}>
+            <FieldLabel>Dimmed, empty</FieldLabel>
+            <p className="mt-1 text-sm text-[var(--color-text-secondary)]">Outside the viewer&apos;s scope.</p>
+          </SelectableCard>
           <MetricCard label="Avg fitness" value="7.8" unit="/10" tone="success" icon="activity" />
           <MetricCard label="Open incidents" value={3} tone="danger" icon="alert-triangle" hint="2 need a vet" />
         </div>

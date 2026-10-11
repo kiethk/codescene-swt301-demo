@@ -299,10 +299,9 @@ public class AdmissionQueryService {
                 admission.getTrainerReviewedAt());
     }
 
-    /** Where a client loads this document from: its cloud URL, or this API when it is on local disk. */
+    /** Where a client loads this document from: always this API, which checks the viewer before serving the file. */
     private String documentUrl(AdmissionDocument document) {
-        return fileStorage.publicUrl(document.getFileUrl(),
-                "/api/admissions/" + document.getAdmissionId() + "/documents/" + document.getId() + "/file");
+        return "/api/admissions/" + document.getAdmissionId() + "/documents/" + document.getId() + "/file";
     }
 
     private AdmissionDocumentResponse toDocumentResponse(AdmissionDocument document) {

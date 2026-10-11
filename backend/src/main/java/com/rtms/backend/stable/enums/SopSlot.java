@@ -21,31 +21,31 @@ public enum SopSlot {
     MORNING_FEED(
             LocalTime.of(5, 0),
             GroomTaskType.FEEDING,
-            "Cho ăn sáng theo khẩu phần dinh dưỡng đã duyệt"),
+            "Morning feed, following the approved ration"),
 
     /** 05:30 — dọn chuồng đợt 1, trước khi dắt ngựa ra sân. */
     MUCK_OUT_MORNING(
             LocalTime.of(5, 30),
             GroomTaskType.MUCKING_OUT,
-            "Dọn phân, thay rơm lót chuồng đợt 1 trước giờ tập"),
+            "First muck-out: remove manure and replace bedding before training"),
 
     /** 10:00 — ngay sau khi lot cuối kết thúc. Gom việc hạ nhiệt của cả 3 con làm một mạch. */
     POST_WORKOUT_GROOMING(
             LocalTime.of(10, 0),
             GroomTaskType.GROOMING,
-            "Tắm rửa toàn thân, chải lông, bôi dầu dưỡng móng sau buổi tập (10:00 - 11:30)"),
+            "Full wash, grooming and hoof oil after training (10:00 - 11:30)"),
 
     /** 11:30 — ăn trưa. */
     LUNCH_FEED(
             LocalTime.of(11, 30),
             GroomTaskType.FEEDING,
-            "Cho ăn trưa và kiểm tra bổ sung máng nước sạch"),
+            "Midday feed; check and refill the water trough"),
 
     /** 16:30 — ăn chiều + dọn chuồng đợt 2. */
     EVENING_FEED(
             LocalTime.of(16, 30),
             GroomTaskType.FEEDING,
-            "Cho ăn chiều, bổ sung cỏ khô và dọn vệ sinh chuồng đợt 2");
+            "Evening feed, top up hay, and second muck-out");
 
     private final LocalTime time;
     private final GroomTaskType taskType;

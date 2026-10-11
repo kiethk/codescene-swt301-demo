@@ -24,7 +24,6 @@ export type OwnerAdmissionDetail = {
 };
 
 type ApiResponse<T> = { success: boolean; data: T; message: string };
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
 export const ownerAdmissionApi = {
   list: async () => (await apiGet<ApiResponse<AdmissionSummaryResponse[]>>('/api/owner/admissions')).data,
@@ -50,11 +49,9 @@ export const ownerAdmissionApi = {
     body.append('documentType', documentType);
     if (recordDate) body.append('recordDate', recordDate);
     if (note) body.append('note', note);
-    const response = await fetch(`${API_URL}/api/owner/admissions/${id}/documents`, {
-      method: 'POST', credentials: 'include', body,
-    });
-    const json: ApiResponse<AdmissionDocument> = await response.json();
-    if (!response.ok || !json.success) throw new Error(json.message || 'Document upload failed');
+    // Through the shared client: it sends the access token and refreshes it once on 401.
+    const json = await apiUpload<ApiResponse<AdmissionDocument>>(`/api/owner/admissions/${id}/documents`, body);
+    if (!json?.success) throw new Error(json?.message || 'Document upload failed');
     return json.data;
   },
 };

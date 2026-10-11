@@ -141,11 +141,11 @@ public class GroomIncidentReportService {
                                             HandleIncidentRequest request,
                                             AuthenticatedUser currentUser) {
         GroomIncidentReport report = incidentReportRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy báo cáo sự cố #" + id));
+                .orElseThrow(() -> new RuntimeException("Incident report not found with id: " + id));
 
         IncidentStatus next = request.getStatus();
         if (next == null) {
-            throw new IllegalArgumentException("Thiếu trạng thái mới!");
+            throw new IllegalArgumentException("The new status is required");
         }
 
         IncidentStatus current = report.getStatus();
@@ -157,7 +157,7 @@ public class GroomIncidentReportService {
 
         if (!valid) {
             throw new IllegalStateException(String.format(
-                    "Không thể chuyển báo cáo từ %s sang %s!", current, next));
+                    "An incident report cannot move from %s to %s", current, next));
         }
 
         report.setStatus(next);
@@ -170,9 +170,15 @@ public class GroomIncidentReportService {
         return incidentReportRepository.save(report);
     }
 
-    public GroomIncidentReport getReportById(Long id) {
-        return incidentReportRepository.findById(id)
+    /** One report. A Groom may only read a report they submitted; other roles are limited by their permission. */
+    public GroomIncidentReport getReportById(Long id, AuthenticatedUser currentUser) {
+        GroomIncidentReport report = incidentReportRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Incident report not found with id: " + id));
+        if ("GROOM".equalsIgnoreCase(currentUser.getRole())
+                && !currentUser.getUserId().equals(report.getGroomId())) {
+            throw new AccessDeniedException("You can only view incident reports you submitted");
+        }
+        return report;
     }
 
     /**
@@ -191,14 +197,14 @@ public class GroomIncidentReportService {
 
         GroomIncidentReport report = incidentReportRepository.findById(reportId)
                 .orElseThrow(() -> new RuntimeException(
-                        "Không tìm thấy báo cáo sự cố #" + reportId));
+                        "Incident report not found with id: " + reportId));
 
         // Chỉ người gửi báo cáo mới được đính ảnh.
         // Thú y xem được nhưng không sửa được bằng chứng của Groom.
         if ("GROOM".equalsIgnoreCase(currentUser.getRole())
                 && !currentUser.getUserId().equals(report.getGroomId())) {
             throw new AccessDeniedException(
-                    "Bạn chỉ được đính ảnh vào báo cáo do chính mình gửi!");
+                    "You can only attach an image to a report you submitted");
         }
 
         // FileStorageService also accepts PDFs. Incident reports take images only,
@@ -207,7 +213,7 @@ public class GroomIncidentReportService {
                 ? "" : file.getContentType().toLowerCase(Locale.ROOT);
         if (!mediaType.startsWith("image/")) {
             throw new IllegalArgumentException(
-                    "Chỉ nhận ảnh (JPEG, PNG, WebP) cho báo cáo sự cố!");
+                    "Incident reports accept images only (JPEG, PNG, WebP)");
         }
 
         String oldKey = report.getImageUrl();
@@ -224,27 +230,17 @@ public class GroomIncidentReportService {
         }
     }
 
-    /**
-     * Nạp file ảnh để trả về cho trình duyệt.
-     *
-     * fileStorage.load() tự ném 404 nếu khoá không bắt đầu bằng "local:",
-     * tức là ảnh được lưu ngoài hệ thống — khi đó frontend dùng thẳng imageUrl.
-     */
-    public Resource loadImage(Long reportId) {
-        GroomIncidentReport report = getReportById(reportId);
+    /** Opens the attached image from whichever storage backend holds it. */
+    public Resource loadImage(Long reportId, AuthenticatedUser currentUser) {
+        GroomIncidentReport report = getReportById(reportId, currentUser);
         if (report.getImageUrl() == null) {
-            throw new RuntimeException("Báo cáo #" + reportId + " không có ảnh đính kèm");
+            throw new RuntimeException("Incident report #" + reportId + " has no image attached");
         }
         return fileStorage.load(report.getImageUrl());
     }
 
-    /** Suy kiểu nội dung từ đuôi khoá lưu trữ, để trình duyệt hiển thị đúng. */
-    public MediaType imageMediaType(Long reportId) {
-        String key = getReportById(reportId).getImageUrl();
-        String lower = key == null ? "" : key.toLowerCase(Locale.ROOT);
-        if (lower.endsWith(".png"))  return MediaType.IMAGE_PNG;
-        if (lower.endsWith(".webp")) return MediaType.valueOf("image/webp");
-        return MediaType.IMAGE_JPEG;
+    public MediaType imageMediaType(Long reportId, AuthenticatedUser currentUser) {
+        return fileStorage.mediaType(getReportById(reportId, currentUser).getImageUrl());
     }
 }
 

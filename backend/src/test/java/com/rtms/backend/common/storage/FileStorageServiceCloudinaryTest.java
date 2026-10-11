@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -13,8 +14,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Base64;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -40,34 +44,46 @@ class FileStorageServiceCloudinaryTest {
     }
 
     @Test
-    void uploadsAnImageThatIsPubliclyReadableThenDeletesIt() throws Exception {
+    void uploadsAPrivateImageThatOnlyTheBackendCanReadThenDeletesIt() throws Exception {
         FileStorageService storage = storage();
         String url = storage.store(new MockMultipartFile("file", "pixel.png", "image/png", PNG_1X1), FOLDER);
         try {
             System.out.println("[cloudinary] image stored at " + url);
             assertFalse(storage.isLocal(url));
-            assertTrue(url.matches("https://res\\.cloudinary\\.com/[^/]+/image/upload/v\\d+/rtms/_selftest/[a-f0-9\\-]{36}\\.png"), url);
-            assertEquals(200, status(url), "image should be downloadable");
+            assertTrue(url.matches("https://res\\.cloudinary\\.com/[^/]+/image/authenticated/v\\d+/rtms/_selftest/[a-f0-9\\-]{36}\\.png"), url);
+            int anonymous = status(url);
+            System.out.println("[cloudinary] anonymous request for the stored key: " + anonymous);
+            assertNotEquals(200, anonymous, "the stored key must not open the file without a signature");
+            assertArrayEquals(PNG_1X1, storage.load(url).getContentAsByteArray(), "the backend should read it back");
         } finally {
             storage.delete(url);
         }
-        System.out.println("[cloudinary] image status after delete: " + status(url));
+        // Not asserted: the CDN may keep serving a deleted file for a while after it is invalidated.
+        System.out.println("[cloudinary] anonymous status after delete: " + status(url));
     }
 
     @Test
-    void uploadsAPdfAndReportsWhetherTheAccountDeliversIt() throws Exception {
+    void uploadsAPrivatePdfAndReadsItBack() throws Exception {
         FileStorageService storage = storage();
         String url = storage.store(new MockMultipartFile("file", "doc.pdf", "application/pdf", minimalPdf()), FOLDER);
         try {
             System.out.println("[cloudinary] pdf stored at " + url);
-            assertTrue(url.matches("https://res\\.cloudinary\\.com/[^/]+/image/upload/v\\d+/rtms/_selftest/[a-f0-9\\-]{36}\\.pdf"), url);
-            int status = status(url);
-            System.out.println("[cloudinary] pdf delivery status: " + status);
-            assertEquals(200, status,
-                    "PDF uploaded but is not delivered: enable \"Allow delivery of PDF and ZIP files\" under Settings > Security");
+            assertTrue(url.matches("https://res\\.cloudinary\\.com/[^/]+/image/authenticated/v\\d+/rtms/_selftest/[a-f0-9\\-]{36}\\.pdf"), url);
+            assertNotEquals(200, status(url), "the stored key must not open the file without a signature");
+            // Fails with "not found" when the account blocks PDF delivery:
+            // enable "Allow delivery of PDF and ZIP files" under Settings > Security.
+            assertArrayEquals(minimalPdf(), storage.load(url).getContentAsByteArray());
         } finally {
             storage.delete(url);
         }
+    }
+
+    @Test
+    void rejectsAFileWhoseContentIsNotWhatItClaims() {
+        var fake = new MockMultipartFile("file", "fake.png", "image/png", "MZ not an image".getBytes());
+
+        var error = assertThrows(ResponseStatusException.class, () -> storage().store(fake, FOLDER));
+        assertEquals(400, error.getStatusCode().value());
     }
 
     private int status(String url) throws Exception {

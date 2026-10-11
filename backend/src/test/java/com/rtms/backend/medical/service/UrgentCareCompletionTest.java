@@ -157,6 +157,9 @@ class UrgentCareCompletionTest {
         assertNull(horse.getTrainingDecisionReason());
         assertTrue(horse.canTrain());
         assertEquals(IncidentStatus.RESOLVED, incident.getStatus());
+        assertNotNull(incident.getHandlerNote(), "the reporting Groom should be told the outcome");
+        assertTrue(incident.getHandlerNote().startsWith("Diagnosis: "));
+        assertTrue(incident.getHandlerNote().endsWith("Training: allowed"));
         verify(healthRecordRepository).save(any(HealthRecord.class));
         verify(workoutService, never()).cancelFutureTrainingForHorse(anyLong(), anyString());
     }

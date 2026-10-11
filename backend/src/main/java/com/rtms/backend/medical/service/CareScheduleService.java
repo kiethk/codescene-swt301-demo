@@ -391,6 +391,8 @@ public class CareScheduleService {
                     incident.setStatus(IncidentStatus.RESOLVED);
                     incident.setHandledById(vetId);
                     incident.setHandledAt(now);
+                    // The Groom who reported it reads the outcome on the incident, not on the health record.
+                    incident.setHandlerNote(incidentOutcomeNote(request));
                     incidentReportRepository.save(incident);
                 }
             });
@@ -881,6 +883,24 @@ public class CareScheduleService {
         return buildUrgentAlert(schedule, incident, horse, veterinarianId, schedule.getUpdatedAt());
     }
 
+    /** What the reporting Groom is told when the urgent case closes: diagnosis, care to give, and whether the horse may train. */
+    private static String incidentOutcomeNote(CompleteCareScheduleRequest request) {
+        StringBuilder note = new StringBuilder("Diagnosis: ").append(request.getDiagnosis().trim());
+        if (request.getTreatment() != null && !request.getTreatment().isBlank()) {
+            note.append("\nTreatment: ").append(request.getTreatment().trim());
+        }
+        if (request.getTrainingDecision() == TrainingDecision.BLOCKED) {
+            note.append("\nTraining: blocked");
+            if (request.getRestrictionDetails() != null && !request.getRestrictionDetails().isBlank()) {
+                note.append(" - ").append(request.getRestrictionDetails().trim());
+            }
+        } else {
+            note.append("\nTraining: allowed");
+        }
+        // handler_note is a TEXT column, but keep the note a readable size.
+        return note.length() > 2000 ? note.substring(0, 2000) : note.toString();
+    }
+
     private UrgentAssignmentAlert buildUrgentAlert(CareSchedule schedule, GroomIncidentReport incident,
             Horse horse, Long veterinarianId, LocalDateTime assignedAt) {
         User reporter = incident != null && incident.getGroomId() != null
@@ -903,7 +923,9 @@ public class CareScheduleService {
                 incident != null ? incident.getSeverity() : null,
                 incident != null ? incident.getTitle() : "Urgent Care",
                 incident != null ? incident.getDescription() : schedule.getDescription(),
-                incident != null ? incident.getImageUrl() : null,
+                // The image endpoint, never the storage key: the client loads it with its access token.
+                incident != null && incident.getImageUrl() != null
+                        ? "/api/groom-incident-reports/" + incident.getId() + "/image" : null,
                 horse.getTrainingDecision(),
                 schedule.getStatus(),
                 schedule.getScheduledAt(),

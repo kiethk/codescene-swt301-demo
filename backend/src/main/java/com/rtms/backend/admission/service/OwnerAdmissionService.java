@@ -241,10 +241,9 @@ public class OwnerAdmissionService {
         if (!allowed) throw new org.springframework.security.access.AccessDeniedException("Admission is not assigned to you");
     }
 
-    /** Where a client loads this document from: its cloud URL, or this API when it is on local disk. */
+    /** Where a client loads this document from: always this API, which checks the viewer before serving the file. */
     private String documentUrl(AdmissionDocument document) {
-        return fileStorage.publicUrl(document.getFileUrl(),
-                "/api/admissions/" + document.getAdmissionId() + "/documents/" + document.getId() + "/file");
+        return "/api/admissions/" + document.getAdmissionId() + "/documents/" + document.getId() + "/file";
     }
 
     /** Storage folder that groups every document of one admission. */
