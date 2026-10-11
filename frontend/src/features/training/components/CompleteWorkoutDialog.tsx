@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 import { Button, FormField, Input, Modal, Notice, Textarea } from '@/components/ui';
-import { displayError } from '@/lib/display';
-import { trainingApi } from '../services/trainingService';
+import { displayError, formatDate, formatTime } from '@/lib/display';
+import { toast } from '@/lib/toast';
+import { trainingService } from '../services/trainingService';
 import type { PlanWorkoutItemResponse, CompleteWorkoutRequest } from '../types';
 
 const FORM_ID = 'complete-workout-form';
@@ -34,6 +35,7 @@ export function CompleteWorkoutDialog({
   const [error, setError] = useState<string | null>(null);
 
   if (!open || !workout) return null;
+  const target = workout;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -57,8 +59,8 @@ export function CompleteWorkoutDialog({
         trainerFeedback: trainerFeedback.trim() || null,
       };
 
-      if (!workout) return;
-      await trainingApi.completeWorkout(workout.workoutId, payload);
+      await trainingService.completeWorkout(target.workoutId, payload);
+      toast.success('Workout results recorded.');
       await onSuccess();
       onClose();
     } catch (err) {
@@ -74,7 +76,7 @@ export function CompleteWorkoutDialog({
       onClose={onClose}
       dismissible={!submitting}
       title={`Record workout results #${workout.workoutId}`}
-      description={`${workout.subjectName} • ${workout.lotDate} (${workout.startTime} – ${workout.endTime})`}
+      description={`${workout.subjectName} · ${formatDate(workout.lotDate)} (${formatTime(workout.startTime)} – ${formatTime(workout.endTime)})`}
       footer={(
         <>
           <Button variant="secondary" onClick={onClose} disabled={submitting}>

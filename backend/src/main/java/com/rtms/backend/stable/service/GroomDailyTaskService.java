@@ -10,8 +10,7 @@ import com.rtms.backend.horse.entity.Horse;
 import com.rtms.backend.medical.entity.CareSchedule;
 import com.rtms.backend.stable.entity.StableStall;
 import com.rtms.backend.training.entity.Subject;
-import com.rtms.backend.training.entity.TrainingLot;
-import com.rtms.backend.training.entity.TrainingWorkout;
+import com.rtms.backend.training.dto.GroomWorkoutRow;
 import com.rtms.backend.stable.enums.GroomTaskType;
 import com.rtms.backend.stable.enums.SopSlot;
 import com.rtms.backend.stable.enums.TaskSource;
@@ -19,7 +18,6 @@ import com.rtms.backend.stable.repository.GroomDailyTaskRepository;
 import com.rtms.backend.horse.repository.HorseRepository;
 import com.rtms.backend.medical.repository.CareScheduleRepository;
 import com.rtms.backend.stable.repository.StableStallRepository;
-import com.rtms.backend.training.repository.SubjectRepository;
 import com.rtms.backend.training.repository.TrainingWorkoutRepository;
 import com.rtms.backend.identity.repository.UserRepository;
 import com.rtms.backend.security.AuthenticatedUser;
@@ -46,22 +44,19 @@ public class GroomDailyTaskService {
     private final StableStallRepository stableStallRepository;
     private final TrainingWorkoutRepository workoutRepository;
     private final CareScheduleRepository careScheduleRepository;
-    private final SubjectRepository subjectRepository;
 
     public GroomDailyTaskService(GroomDailyTaskRepository taskRepository,
                                  HorseRepository horseRepository,
                                  UserRepository userRepository,
                                  StableStallRepository stableStallRepository,
                                  TrainingWorkoutRepository workoutRepository,
-                                 CareScheduleRepository careScheduleRepository,
-                                 SubjectRepository subjectRepository) {
+                                 CareScheduleRepository careScheduleRepository) {
         this.taskRepository = taskRepository;
         this.horseRepository = horseRepository;
         this.userRepository = userRepository;
         this.stableStallRepository = stableStallRepository;
         this.workoutRepository = workoutRepository;
         this.careScheduleRepository = careScheduleRepository;
-        this.subjectRepository = subjectRepository;
     }
 
     @Transactional
@@ -205,12 +200,9 @@ public class GroomDailyTaskService {
         List<GroomDailyTask> sopTasks = taskRepository
                 .findByGroomIdAndScheduledTimeBetween(targetGroomId, dayStart, dayEnd);
 
-        // Nguồn 2 — Buổi tập (JOIN sang training_lots vì workout không còn giữ giờ)
-        List<WorkoutWithLot> workouts = workoutRepository
-                .findGroomWorkoutsWithLot(targetGroomId, targetDate)
-                .stream()
-                .map(WorkoutWithLot::of)
-                .toList();
+        // Nguồn 2 — Buổi tập, đã JOIN sẵn giờ lot, tên ngựa và tên bài tập trong MỘT câu query
+        // (Source 2 — Workouts, with lot times, horse name and subject name already joined in ONE query)
+        List<GroomWorkoutRow> workouts = workoutRepository.findGroomWorkoutRows(targetGroomId, targetDate);
 
         // Nguồn 3 — Lịch thú y của ngựa trong chuồng mình
         List<Long> stallIds = stableStallRepository.findByGroomId(targetGroomId).stream()
@@ -239,24 +231,15 @@ public class GroomDailyTaskService {
         myHorses.forEach(h -> horseNameById.put(h.getId(), h.getName()));
 
         // Chỉ những con CHƯA có tên mới phải tra thêm (ví dụ Trainer nhờ Groom
-        // này dắt hộ một con không thuộc chuồng của họ). Thường là rỗng.
+        // này dắt hộ một con không thuộc chuồng của họ). Thường là rỗng. Buổi tập đã mang sẵn tên ngựa.
+        // (Only horses WITHOUT a name yet need a lookup. Usually empty. Workout rows already carry the horse name.)
         Set<Long> neededHorseIds = new HashSet<>();
         sopTasks.forEach(t -> neededHorseIds.add(t.getHorseId()));
-        workouts.forEach(wl -> neededHorseIds.add(wl.workout().getHorseId()));
         neededHorseIds.removeAll(horseNameById.keySet());
 
         if (!neededHorseIds.isEmpty()) {
             horseRepository.findAllById(neededHorseIds)
                     .forEach(h -> horseNameById.put(h.getId(), h.getName()));
-        }
-
-        Set<Long> subjectIds = new HashSet<>();
-        workouts.forEach(wl -> subjectIds.add(wl.lot().getSubjectId()));
-
-        Map<Long, String> subjectNameById = new HashMap<>();
-        if (!subjectIds.isEmpty()) {
-            subjectRepository.findAllById(subjectIds)
-                    .forEach(s -> subjectNameById.put(s.getId(), s.getName()));
         }
 
         // =============================================================
@@ -278,20 +261,17 @@ public class GroomDailyTaskService {
                     true));                       // chỉ SOP mới tick được
         }
 
-        for (WorkoutWithLot wl : workouts) {
-            TrainingWorkout w = wl.workout();
-            TrainingLot lot = wl.lot();
-
+        for (GroomWorkoutRow w : workouts) {
             items.add(new TodayTaskItemResponse(
                     TaskSource.WORKOUT,
-                    w.getId(),
-                    lot.getStartTime(),
-                    lot.getEndTime(),
-                    w.getHorseId(),
-                    nameOf(horseNameById, w.getHorseId()),
-                    "Buổi tập · " + nameOf(subjectNameById, lot.getSubjectId()),
+                    w.workoutId(),
+                    w.startTime(),
+                    w.endTime(),
+                    w.horseId(),
+                    w.horseName(),
+                    "Buổi tập · " + w.subjectName(),
                     "Dắt ngựa ra sân, hỗ trợ Trainer, nhận ngựa về sau buổi tập",
-                    w.getStatus().name(),
+                    w.status().name(),
                     false));                      // Trainer mới là người đóng buổi tập
         }
 
@@ -321,16 +301,6 @@ public class GroomDailyTaskService {
         return nameById.getOrDefault(id, "#" + id);
     }
 
-    /**
-     * Cặp workout + lot trả về từ query JOIN.
-     * Dự án không dùng quan hệ JPA nên query trả Object[]; record này gói lại
-     * để khỏi phải ép kiểu lặp đi lặp lại ở nhiều chỗ.
-     */
-    private record WorkoutWithLot(TrainingWorkout workout, TrainingLot lot) {
-        static WorkoutWithLot of(Object[] row) {
-            return new WorkoutWithLot((TrainingWorkout) row[0], (TrainingLot) row[1]);
-        }
-    }
 
     /** Nhãn tiếng Việt cho loại việc SOP. */
     private String toVietnamese(GroomTaskType type) {

@@ -8,6 +8,9 @@ import java.math.BigDecimal;
  * Theo đề tài, đây là việc của Head Trainer ("Đánh giá phong độ, ghi nhận chỉ
  * số buổi tập và đưa ra nhận xét chuyên môn sau mỗi buổi tập"), KHÔNG phải của
  * Groom. Groom chỉ tick hoàn thành các việc chăm sóc trong groom_daily_tasks.
+ * (The trainer records the result after a workout. Per the project brief this is the head trainer job
+ *  ("assess form, record workout metrics and give professional feedback after each workout"), NOT the groom job.
+ *  The groom only ticks off care tasks in groom_daily_tasks.)
  */
 public class CompleteWorkoutRequest {
 

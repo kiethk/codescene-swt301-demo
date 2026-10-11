@@ -3,6 +3,7 @@ package com.rtms.backend.training.controller;
 import com.rtms.backend.common.dto.ApiResponse;
 import com.rtms.backend.training.dto.CreateSubjectRequest;
 import com.rtms.backend.training.entity.Subject;
+import com.rtms.backend.training.enums.SubjectCategory;
 import com.rtms.backend.training.service.SubjectService;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -21,8 +22,8 @@ public class SubjectController {
 
     @PreAuthorize("hasAuthority('SUBJECT_VIEW')")
     @GetMapping
-    public ApiResponse<List<Subject>> getAllSubjects(@RequestParam(required = false) Long categoryId) {
-        return ApiResponse.success(subjectService.getAllSubjects(categoryId));
+    public ApiResponse<List<Subject>> getAllSubjects(@RequestParam(required = false) SubjectCategory category) {
+        return ApiResponse.success(subjectService.getAllSubjects(category));
     }
 
     @PreAuthorize("hasAuthority('SUBJECT_VIEW')")

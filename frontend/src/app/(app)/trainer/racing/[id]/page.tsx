@@ -1,6 +1,7 @@
 import { Metadata } from 'next';
 import { RoleGuard } from '@/components/auth/RoleGuard';
 import { PageContainer } from '@/components/layout/PageContainer';
+import { Notice } from '@/components/ui';
 import { TrainerRaceDetail } from '@/features/racing/components/TrainerRaceDetail';
 
 export const metadata: Metadata = {
@@ -24,9 +25,7 @@ export default async function TrainerRaceDetailPage({
         {validId ? (
           <TrainerRaceDetail id={raceId} />
         ) : (
-          <p role="alert" className="text-sm text-[var(--color-danger)]">
-            This race nomination ID is invalid.
-          </p>
+          <Notice tone="error">This race nomination ID is invalid.</Notice>
         )}
       </PageContainer>
     </RoleGuard>

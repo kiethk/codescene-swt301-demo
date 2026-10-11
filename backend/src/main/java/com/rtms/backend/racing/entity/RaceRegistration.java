@@ -1,5 +1,6 @@
 package com.rtms.backend.racing.entity;
 
+import com.rtms.backend.racing.enums.RaceRegistrationStatus;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -64,7 +65,9 @@ public class RaceRegistration {
     @Column(name = "trainer_notes")
     private String trainerNotes;
 
-    private String status = "PENDING";
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 50)
+    private RaceRegistrationStatus status = RaceRegistrationStatus.PENDING;
 
     @Column(name = "reviewed_by_id")
     private Long reviewedById;
@@ -87,7 +90,7 @@ public class RaceRegistration {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
         if (status == null) {
-            status = "PENDING";
+            status = RaceRegistrationStatus.PENDING;
         }
     }
 
@@ -240,11 +243,11 @@ public class RaceRegistration {
         this.trainerNotes = trainerNotes;
     }
 
-    public String getStatus() {
+    public RaceRegistrationStatus getStatus() {
         return status;
     }
 
-    public void setStatus(String status) {
+    public void setStatus(RaceRegistrationStatus status) {
         this.status = status;
     }
 

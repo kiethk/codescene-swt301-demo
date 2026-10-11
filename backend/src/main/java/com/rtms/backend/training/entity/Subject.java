@@ -1,6 +1,7 @@
 package com.rtms.backend.training.entity;
 
 import com.rtms.backend.training.enums.IntensityLevel;
+import com.rtms.backend.training.enums.SubjectCategory;
 import com.rtms.backend.training.enums.SurfaceType;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
@@ -14,8 +15,9 @@ public class Subject {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "category_id", nullable = false)
-    private Long categoryId;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "category", nullable = false, length = 30)
+    private SubjectCategory category;
 
     @Column(nullable = false)
     private String name;
@@ -35,8 +37,9 @@ public class Subject {
     private IntensityLevel intensityLevel; // LOW, MEDIUM, HIGH
 
     // ===== THÊM MỚI (V43) =====
+    // (NEW (V43))
 
-    /** Thời lượng buổi tập (phút) — quyết định độ dài của lot chạy bài này. */
+    /** Thời lượng buổi tập (phút) — quyết định độ dài của lot chạy bài này. (Workout duration in minutes: it decides the length of the lot that runs this subject.) */
     @Column(name = "duration_minutes", nullable = false)
     private Integer durationMinutes = 60;
 
@@ -61,8 +64,8 @@ public class Subject {
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
-    public Long getCategoryId() { return categoryId; }
-    public void setCategoryId(Long categoryId) { this.categoryId = categoryId; }
+    public SubjectCategory getCategory() { return category; }
+    public void setCategory(SubjectCategory category) { this.category = category; }
 
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }

@@ -3,6 +3,7 @@ import com.rtms.backend.stable.entity.StableStall;
 
 /**
  * Một chiến mã trong lời ghi danh theo nhóm.
+ * (One horse in a group enrollment.)
  */
 public class HorseEnrollmentRequest {
 
@@ -13,6 +14,8 @@ public class HorseEnrollmentRequest {
      * (StableStall.groomId) — đúng thực tế: người chăm con ngựa cũng là
      * người dắt nó ra sân.
      * Chỉ điền tay khi cần ghi đè (Groom chính nghỉ ốm chẳng hạn).
+     * (The groom in charge. When null the system infers it from the horse stall (StableStall.groomId): the person who looks after the
+     *  horse also leads it out. Fill it in manually only to override (for example when the main groom is sick).)
      */
     private Long groomId;
 

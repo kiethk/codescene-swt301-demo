@@ -24,4 +24,18 @@ public interface GroomIncidentReportRepository extends JpaRepository<GroomIncide
     List<GroomIncidentReport> findAllByOrderByReportedAtDesc();
 
     long countByHorseIdAndReportedAtAfter(Long horseId, java.time.LocalDateTime after);
+
+    /**
+     * Số báo cáo sự cố của NHIỀU ngựa từ một mốc thời gian, bằng một câu GROUP BY.
+     * (Incident-report counts for MANY horses since a time, with one GROUP BY.)
+     */
+    @Query("""
+           SELECT new com.rtms.backend.training.dto.IncidentCountRow(r.horseId, COUNT(r))
+           FROM GroomIncidentReport r
+           WHERE r.horseId IN :horseIds AND r.reportedAt > :after
+           GROUP BY r.horseId
+           """)
+    List<com.rtms.backend.training.dto.IncidentCountRow> countIncidentsByHorseIds(
+            @Param("horseIds") java.util.Collection<Long> horseIds,
+            @Param("after") java.time.LocalDateTime after);
 }

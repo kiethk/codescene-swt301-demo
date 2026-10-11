@@ -9,6 +9,9 @@ import com.rtms.backend.medical.entity.HealthRecord;
  *
  * Không có mức "tập hạn chế": thương nhẹ là BLOCKED kèm một lịch khám lại gần
  * (nextSchedule). Mức độ nặng nhẹ thể hiện ở thời hạn nghỉ, không ở số trạng thái.
+ * (Whether the horse may train: ONE single type used for both the current state of the horse (Horse.trainingDecision) and the conclusion
+ *  of each examination (HealthRecord.trainingDecision). There is no "limited training" level: a mild injury is BLOCKED with a near follow-up
+ *  examination (nextSchedule). Severity shows in the length of the rest, not in the number of states.)
  */
 public enum TrainingDecision {
     ALLOWED,

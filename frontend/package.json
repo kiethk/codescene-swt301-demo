@@ -7,7 +7,7 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --experimental-strip-types --test src/features/admissions/components/__tests__/*.test.ts"
+    "test": "node --experimental-strip-types --test src/features/admissions/components/__tests__/*.test.ts src/features/horses/__tests__/*.test.ts src/features/racing/__tests__/*.test.ts src/features/training/__tests__/*.test.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.2.0",

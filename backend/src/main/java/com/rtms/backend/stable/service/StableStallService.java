@@ -1,6 +1,6 @@
 package com.rtms.backend.stable.service;
 import com.rtms.backend.horse.service.HorseService;
-import com.rtms.backend.training.service.HorseTrainingPlanService;
+import com.rtms.backend.training.service.TrainingWorkoutService;
 
 
 import com.rtms.backend.config.FarmSchedulePolicy;
@@ -9,7 +9,6 @@ import com.rtms.backend.identity.entity.User;
 import com.rtms.backend.horse.repository.HorseRepository;
 import com.rtms.backend.stable.repository.StableStallRepository;
 import com.rtms.backend.identity.repository.UserRepository;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,23 +18,20 @@ public class StableStallService {
     private final StableStallRepository stableStallRepository;
     private final UserRepository userRepository;
     private final HorseRepository horseRepository;
-    private final HorseTrainingPlanService planService;
+    private final TrainingWorkoutService workoutService;
 
     /**
-     * @param planService dùng để đồng bộ Groom cho các buổi tập tương lai.
-     *                    Đánh @Lazy phòng xa, theo đúng cách HorseService đang
-     *                    tiêm lớp này — HorseTrainingPlanService có nhiều quan
-     *                    hệ, thêm quan hệ mới về sau sẽ không làm Spring chết
-     *                    lúc khởi động vì vòng phụ thuộc.
+     * @param workoutService dùng để đồng bộ Groom cho các buổi tập tương lai.
+     *                       (used to sync the groom of future workouts.)
      */
     public StableStallService(StableStallRepository stableStallRepository,
                               UserRepository userRepository,
                               HorseRepository horseRepository,
-                              @Lazy HorseTrainingPlanService planService) {
+                              TrainingWorkoutService workoutService) {
         this.stableStallRepository = stableStallRepository;
         this.userRepository = userRepository;
         this.horseRepository = horseRepository;
-        this.planService = planService;
+        this.workoutService = workoutService;
     }
 
     /**
@@ -56,7 +52,7 @@ public class StableStallService {
         // Trainer thấy mà xử lý, thay vì treo ở người không còn chăm con ngựa.
         if (groomId == null) {
             horseRepository.findByCurrentStallId(stallId)
-                    .ifPresent(h -> planService.reassignFutureWorkoutsToGroom(h.getId(), null));
+                    .ifPresent(h -> workoutService.reassignFutureWorkoutsToGroom(h.getId(), null));
 
             stall.setGroomId(null);
             return stableStallRepository.save(stall);
@@ -94,7 +90,7 @@ public class StableStallService {
         // trước rồi kiểm sau sẽ để lại trạng thái nửa vời nếu ai đó lỡ bỏ
         // @Transactional khỏi phương thức này.
         horseRepository.findByCurrentStallId(stallId)
-                .ifPresent(h -> planService.reassignFutureWorkoutsToGroom(h.getId(), groomId));
+                .ifPresent(h -> workoutService.reassignFutureWorkoutsToGroom(h.getId(), groomId));
 
         stall.setGroomId(groomId);
         return stableStallRepository.save(stall);
