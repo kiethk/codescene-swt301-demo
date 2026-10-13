@@ -7,7 +7,7 @@ export function getNotificationHref(item: NotificationItem, role: Role | undefin
   if (!refId) return null;
 
   if (item.referenceType === 'CARE_SCHEDULE' && role === 'VETERINARIAN') {
-    return `/veterinarian/admissions?scheduleId=${refId}`;
+    return `/veterinarian/urgent/${refId}`;
   }
   if (item.notificationType === 'ADMISSION_VET_ASSIGNED') return `/veterinarian/admissions?id=${refId}`;
   if (item.notificationType === 'ADMISSION_TRAINER_ASSIGNED') return `/trainer/admissions/${refId}`;

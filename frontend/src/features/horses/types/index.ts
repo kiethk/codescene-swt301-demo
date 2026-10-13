@@ -22,3 +22,36 @@ export interface HorseSpecialty {
   preferredSurface: SurfaceType | null;
   distanceStats: DistanceStat[];
 }
+
+export interface HorseSummary {
+  id: number;
+  name: string;
+  breed: string | null;
+  dateOfBirth: string | null;
+  currentStatus: string;
+}
+
+export interface HorsePedigree {
+  id: number;
+  horse: HorseSummary;
+  sire: HorseSummary | null;
+  dam: HorseSummary | null;
+  registrationNumber?: string | null;
+  registryName?: string | null;
+  pedigreeNotes?: string | null;
+}
+
+export interface HorseHealthMetric {
+  id: number;
+  horseId: number;
+  healthRecordId?: number | null;
+  recordedAt: string;
+  heartRate: number | null;
+  temperature: number | null;
+  weight: number | null;
+  respiratoryRate: number | null;
+  hydrationStatus?: string | null;
+  bodyConditionScore?: number | null;
+  notes?: string | null;
+}
+
