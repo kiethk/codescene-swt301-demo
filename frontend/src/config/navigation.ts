@@ -36,7 +36,7 @@ export function getNavigationForRole(role: Role): NavSection[] {
           label: 'Operations',
           items: [
             { id: 'admissions', label: 'Admissions', icon: 'clipboard', href: '/manager/admissions' },
-            { id: 'horses', label: 'Horses', icon: 'horse' },
+            { id: 'horses', label: 'Horses', icon: 'horse', href: '/manager/horses' },
             { id: 'stable', label: 'Stable', icon: 'building' },
           ],
         },
