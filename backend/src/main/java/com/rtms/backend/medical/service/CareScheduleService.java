@@ -246,27 +246,7 @@ public class CareScheduleService {
 
     @Transactional
     public CareScheduleResponse completeCareSchedule(Long scheduleId, CompleteCareScheduleRequest request, Long vetId) {
-        if (request.getFindings() == null || request.getFindings().isBlank()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "Findings are required");
-        }
-        if (request.getDiagnosis() == null || request.getDiagnosis().isBlank()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "Diagnosis is required");
-        }
-        if (request.getTrainingDecision() == null) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "Training decision is required");
-        }
-        if (request.getTrainingDecision() == TrainingDecision.BLOCKED) {
-            if (request.getRestrictionDetails() == null || request.getRestrictionDetails().isBlank()) {
-                throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR",
-                        "Restriction details are required when training is BLOCKED");
-            }
-            // Chặn tập luôn phải có điểm kết thúc: lần khám lại chính là mốc "tạm nghỉ đến".
-            // Không có lịch thì ngựa bị khóa vô thời hạn cho tới khi ai đó nhớ ra mà tạo.
-            if (request.getNextSchedule() == null) {
-                throw new ApiException(HttpStatus.BAD_REQUEST, "FOLLOW_UP_REQUIRED",
-                        "A follow-up examination (nextSchedule) is required when training is BLOCKED");
-            }
-        }
+        validateCompletionRequest(request);
 
         CareSchedule schedule = lockClinicalSchedule(scheduleId);
 
@@ -320,38 +300,7 @@ public class CareScheduleService {
         }
 
         LocalDateTime now = LocalDateTime.now();
-        HealthRecord record = new HealthRecord();
-        record.setHorseId(horse.getId());
-        record.setVeterinarianId(vetId);
-        record.setCareScheduleId(schedule.getId());
-        record.setRecordType(schedule.getCareType().name());
-        record.setExaminedAt(now);
-        record.setFindings(request.getFindings().trim());
-        record.setDiagnosis(request.getDiagnosis().trim());
-        record.setTreatment(request.getTreatment() != null ? request.getTreatment().trim() : null);
-        record.setTrainingDecision(request.getTrainingDecision());
-        record.setRestrictionDetails(request.getRestrictionDetails() != null ? request.getRestrictionDetails().trim() : null);
-        record.setSymptoms(request.getSymptoms() != null ? request.getSymptoms().trim() : null);
-        record.setNotes(request.getNotes() != null ? request.getNotes().trim() : null);
-        HealthRecord savedRecord = healthRecordRepository.save(record);
-
-        // Save metrics if present
-        if (request.getMetrics() != null) {
-            for (HorseHealthMetricRequest metricReq : request.getMetrics()) {
-                HorseHealthMetric m = new HorseHealthMetric();
-                m.setHorseId(horse.getId());
-                m.setHealthRecordId(savedRecord.getId());
-                m.setRecordedAt(now);
-                m.setHeartRate(metricReq.getHeartRate());
-                m.setTemperature(metricReq.getTemperature());
-                m.setWeight(metricReq.getWeight());
-                m.setRespiratoryRate(metricReq.getRespiratoryRate());
-                m.setHydrationStatus(metricReq.getHydrationStatus());
-                m.setBodyConditionScore(metricReq.getBodyConditionScore());
-                m.setNotes(metricReq.getNotes());
-                metricRepository.save(m);
-            }
-        }
+        saveExaminationResults(schedule, horse, request, vetId, now);
 
         // If exam linked to AdmissionApplication, update admission status
         if (schedule.getAdmissionId() != null) {
@@ -404,6 +353,66 @@ public class CareScheduleService {
         }
 
         return CareScheduleResponse.from(completedSchedule);
+    }
+
+    private void validateCompletionRequest(CompleteCareScheduleRequest request) {
+        if (request.getFindings() == null || request.getFindings().isBlank()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "Findings are required");
+        }
+        if (request.getDiagnosis() == null || request.getDiagnosis().isBlank()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "Diagnosis is required");
+        }
+        if (request.getTrainingDecision() == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "Training decision is required");
+        }
+        if (request.getTrainingDecision() == TrainingDecision.BLOCKED) {
+            if (request.getRestrictionDetails() == null || request.getRestrictionDetails().isBlank()) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR",
+                        "Restriction details are required when training is BLOCKED");
+            }
+            // Chặn tập luôn phải có điểm kết thúc: lần khám lại chính là mốc "tạm nghỉ đến".
+            // Không có lịch thì ngựa bị khóa vô thời hạn cho tới khi ai đó nhớ ra mà tạo.
+            if (request.getNextSchedule() == null) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "FOLLOW_UP_REQUIRED",
+                        "A follow-up examination (nextSchedule) is required when training is BLOCKED");
+            }
+        }
+    }
+
+    private void saveExaminationResults(CareSchedule schedule, Horse horse,
+                                        CompleteCareScheduleRequest request, Long vetId, LocalDateTime now) {
+        HealthRecord record = new HealthRecord();
+        record.setHorseId(horse.getId());
+        record.setVeterinarianId(vetId);
+        record.setCareScheduleId(schedule.getId());
+        record.setRecordType(schedule.getCareType().name());
+        record.setExaminedAt(now);
+        record.setFindings(request.getFindings().trim());
+        record.setDiagnosis(request.getDiagnosis().trim());
+        record.setTreatment(request.getTreatment() != null ? request.getTreatment().trim() : null);
+        record.setTrainingDecision(request.getTrainingDecision());
+        record.setRestrictionDetails(request.getRestrictionDetails() != null ? request.getRestrictionDetails().trim() : null);
+        record.setSymptoms(request.getSymptoms() != null ? request.getSymptoms().trim() : null);
+        record.setNotes(request.getNotes() != null ? request.getNotes().trim() : null);
+        HealthRecord savedRecord = healthRecordRepository.save(record);
+
+        // Save metrics if present
+        if (request.getMetrics() != null) {
+            for (HorseHealthMetricRequest metricReq : request.getMetrics()) {
+                HorseHealthMetric m = new HorseHealthMetric();
+                m.setHorseId(horse.getId());
+                m.setHealthRecordId(savedRecord.getId());
+                m.setRecordedAt(now);
+                m.setHeartRate(metricReq.getHeartRate());
+                m.setTemperature(metricReq.getTemperature());
+                m.setWeight(metricReq.getWeight());
+                m.setRespiratoryRate(metricReq.getRespiratoryRate());
+                m.setHydrationStatus(metricReq.getHydrationStatus());
+                m.setBodyConditionScore(metricReq.getBodyConditionScore());
+                m.setNotes(metricReq.getNotes());
+                metricRepository.save(m);
+            }
+        }
     }
 
     @Transactional
