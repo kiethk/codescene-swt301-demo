@@ -32,6 +32,7 @@ import type {
   CareScheduleStatus,
   CareType,
   HorseHealthMetricResponse,
+  TrainingDecision,
   VetAdmissionQueueItem,
   VetQueueSummary,
   VetReviewResponse,
@@ -39,6 +40,16 @@ import type {
 import { VetReviewForm } from './VetReviewForm';
 
 type QueuePillFilter = 'ALL' | 'AWAITING' | 'IN_PROGRESS';
+
+type ScheduleHistoryItem = {
+  id: number;
+  label: string;
+  status: CareScheduleStatus;
+  description: string;
+  scheduledAt: string | null;
+  assignedVetId: number | null;
+  createdAt?: string;
+};
 
 const examStatusOptions: Array<{ value: CareScheduleStatus | 'ALL'; label: string }> = [
   { value: 'ALL', label: 'All Exam States' },
@@ -428,15 +439,7 @@ export function VetAdmissionQueue() {
   const latestMetrics = metrics[0] ?? null;
 
   const selectedHistory = useMemo(() => {
-    const list: Array<{
-      id: number;
-      label: string;
-      status: CareScheduleStatus;
-      description: string;
-      scheduledAt: string | null;
-      assignedVetId: number | null;
-      createdAt?: string;
-    }> = [];
+    const list: ScheduleHistoryItem[] = [];
 
     careSchedules
       .filter((cs) => cs.admissionId === selectedId)
@@ -820,153 +823,18 @@ export function VetAdmissionQueue() {
                         onSuccess={handleReviewSuccess}
                         onDirtyChange={handleDirtyChange}
                       />
-                    ) : currentActiveSchedule?.status === 'COMPLETED' ? (
-                      <div className="rounded-[var(--radius-md)] border border-[var(--color-success)] bg-[var(--color-success-soft)] p-5 text-center">
-                        <Icon name="check" size={28} className="mx-auto text-[var(--color-success)]" />
-                        <h3 className="mt-2 text-lg font-bold text-[var(--color-success)]">
-                          Examination Completed
-                        </h3>
-                        <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
-                          {currentActiveSchedule.careType === 'INITIAL'
-                            ? 'The veterinary review for this intake stage has already been submitted and finalized.'
-                            : 'This care schedule has already been completed. The Admission workflow was not changed.'}
-                        </p>
-                        {displayedTrainingDecision && (
-                          <div className="mt-3">
-                            <Pill
-                              tone={displayedTrainingDecision === 'ALLOWED' ? 'success' : 'danger'}
-                            >
-                              Training Decision: {formatLabel(displayedTrainingDecision)}
-                            </Pill>
-                          </div>
-                        )}
-                      </div>
                     ) : (
-                      <div className="p-8 text-center text-[var(--color-text-muted)]">
-                        <Icon name="stethoscope" size={32} className="mx-auto mb-2 opacity-40" />
-                        <p className="text-base font-semibold text-[var(--color-text-secondary)]">
-                          Clinical review locked
-                        </p>
-                        <p className="text-xs mt-1">
-                          {currentActiveSchedule?.status === 'REQUESTED'
-                            ? 'The care schedule is waiting for automatic assignment.'
-                            : assignedElsewhere
-                              ? 'This case is assigned to another veterinarian.'
-                              : 'No active examination found for this admission.'}
-                        </p>
-                      </div>
+                      <ClinicalExamStatus
+                        schedule={currentActiveSchedule}
+                        displayedTrainingDecision={displayedTrainingDecision}
+                        assignedElsewhere={assignedElsewhere}
+                      />
                     )}
                   </div>
 
                   {/* Tab 2: Medical Records History */}
                   {activeTab === 'history' && (
-                    <div className="space-y-5">
-                      <div>
-                        <h3 className="text-sm font-bold text-[var(--color-text-primary)]">
-                          Completed Health Records
-                        </h3>
-                        {detail.healthRecords && detail.healthRecords.length > 0 ? (
-                          <ul className="mt-3 space-y-3">
-                            {detail.healthRecords.map((record) => (
-                              <li
-                                key={record.id}
-                                className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4"
-                              >
-                                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--color-border)] pb-2.5">
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-sm font-bold text-[var(--color-text-primary)]">
-                                      {formatLabel(record.recordType)} Exam
-                                    </span>
-                                    <span className="font-metric text-xs text-[var(--color-text-muted)]">
-                                      Record #{record.id}
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-metric text-xs text-[var(--color-text-secondary)]">
-                                      {formatDate(record.examinedAt, true)}
-                                    </span>
-                                  </div>
-                                </div>
-
-                                <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                                  <MedicalNoteBlock label="Symptoms" value={record.symptoms} />
-                                  <MedicalNoteBlock label="Findings" value={record.findings} />
-                                  <MedicalNoteBlock label="Diagnosis" value={record.diagnosis} />
-                                  <MedicalNoteBlock label="Treatment Plan" value={record.treatment} />
-                                  <MedicalNoteBlock label="Notes & Context" value={record.notes} />
-                                </div>
-
-                                {record.trainingDecision && (
-                                  <div className="mt-2.5 flex items-center gap-2">
-                                    <span
-                                      className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${
-                                        record.trainingDecision === 'ALLOWED'
-                                          ? 'bg-[var(--color-success-soft)] text-[var(--color-success)]'
-                                          : 'bg-[var(--color-danger-soft)] text-[var(--color-danger)]'
-                                      }`}
-                                    >
-                                      Training Decision: {record.trainingDecision}
-                                    </span>
-                                  </div>
-                                )}
-
-                                {record.restrictionDetails && (
-                                  <div className="mt-2 rounded bg-[var(--color-warning-soft)] p-2 text-xs text-[var(--color-warning)]">
-                                    <strong>Restriction Protocol:</strong> {record.restrictionDetails}
-                                  </div>
-                                )}
-                              </li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <p className="mt-2 text-xs text-[var(--color-text-muted)] italic">
-                            No health records filed for this candidate yet.
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="border-t border-[var(--color-border)] pt-4">
-                        <h3 className="text-sm font-bold text-[var(--color-text-primary)]">
-                          Examination Schedule Log
-                        </h3>
-                        {selectedHistory.length > 0 ? (
-                          <ol className="mt-3 space-y-2.5">
-                            {selectedHistory.map((item, idx) => (
-                              <li
-                                key={`${item.id}-${idx}`}
-                                className="flex items-start gap-3 rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface-subtle)] p-3 text-xs"
-                              >
-                                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary-soft)] text-xs font-bold text-[var(--color-primary)]">
-                                  {idx + 1}
-                                </span>
-                                <div className="min-w-0 flex-1">
-                                  <div className="flex flex-wrap items-center justify-between gap-2">
-                                    <span className="font-bold text-[var(--color-text-primary)]">
-                                      {item.label}
-                                    </span>
-                                    <Pill tone={examTone(item.status)} size="sm">
-                                      {formatLabel(item.status)}
-                                    </Pill>
-                                  </div>
-                                  <p className="mt-0.5 text-xs text-[var(--color-text-secondary)]">
-                                    {item.description}
-                                  </p>
-                                  <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-[var(--color-text-muted)]">
-                                    <span>Scheduled: {item.scheduledAt ? formatDate(item.scheduledAt, true) : 'Pending'}</span>
-                                    <span>·</span>
-                                    <span>Assigned Vet: {item.assignedVetId ? `#${item.assignedVetId}` : 'Unassigned'}</span>
-                                  </div>
-                                </div>
-                              </li>
-                            ))}
-                          </ol>
-                        ) : (
-                          <p className="mt-2 text-xs text-[var(--color-text-muted)] italic">
-                            No care schedule logs recorded.
-                          </p>
-                        )}
-                      </div>
-                    </div>
+                    <MedicalHistoryTab healthRecords={detail.healthRecords} selectedHistory={selectedHistory} />
                   )}
 
                   {/* Tab 3: Vitals & Health Metrics History */}
@@ -1191,6 +1059,178 @@ export function VetAdmissionQueue() {
         onCancel={() => setShowCloseConfirm(false)}
       />
     </QueueShell>
+  );
+}
+
+function ClinicalExamStatus({
+  schedule,
+  displayedTrainingDecision,
+  assignedElsewhere,
+}: {
+  schedule: CareSchedule | null;
+  displayedTrainingDecision: TrainingDecision | null | undefined;
+  assignedElsewhere: boolean;
+}) {
+  if (schedule?.status === 'COMPLETED') {
+    return (
+      <div className="rounded-[var(--radius-md)] border border-[var(--color-success)] bg-[var(--color-success-soft)] p-5 text-center">
+        <Icon name="check" size={28} className="mx-auto text-[var(--color-success)]" />
+        <h3 className="mt-2 text-lg font-bold text-[var(--color-success)]">
+          Examination Completed
+        </h3>
+        <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
+          {schedule.careType === 'INITIAL'
+            ? 'The veterinary review for this intake stage has already been submitted and finalized.'
+            : 'This care schedule has already been completed. The Admission workflow was not changed.'}
+        </p>
+        {displayedTrainingDecision && (
+          <div className="mt-3">
+            <Pill
+              tone={displayedTrainingDecision === 'ALLOWED' ? 'success' : 'danger'}
+            >
+              Training Decision: {formatLabel(displayedTrainingDecision)}
+            </Pill>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  let lockedReason = 'No active examination found for this admission.';
+  if (schedule?.status === 'REQUESTED') {
+    lockedReason = 'The care schedule is waiting for automatic assignment.';
+  } else if (assignedElsewhere) {
+    lockedReason = 'This case is assigned to another veterinarian.';
+  }
+
+  return (
+    <div className="p-8 text-center text-[var(--color-text-muted)]">
+      <Icon name="stethoscope" size={32} className="mx-auto mb-2 opacity-40" />
+      <p className="text-base font-semibold text-[var(--color-text-secondary)]">
+        Clinical review locked
+      </p>
+      <p className="text-xs mt-1">
+        {lockedReason}
+      </p>
+    </div>
+  );
+}
+
+function MedicalHistoryTab({
+  healthRecords,
+  selectedHistory,
+}: {
+  healthRecords: AdmissionDetailResponse['healthRecords'];
+  selectedHistory: ScheduleHistoryItem[];
+}) {
+  return (
+    <div className="space-y-5">
+      <div>
+        <h3 className="text-sm font-bold text-[var(--color-text-primary)]">
+          Completed Health Records
+        </h3>
+        {healthRecords && healthRecords.length > 0 ? (
+          <ul className="mt-3 space-y-3">
+            {healthRecords.map((record) => (
+              <li
+                key={record.id}
+                className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--color-border)] pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-[var(--color-text-primary)]">
+                      {formatLabel(record.recordType)} Exam
+                    </span>
+                    <span className="font-metric text-xs text-[var(--color-text-muted)]">
+                      Record #{record.id}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-metric text-xs text-[var(--color-text-secondary)]">
+                      {formatDate(record.examinedAt, true)}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <MedicalNoteBlock label="Symptoms" value={record.symptoms} />
+                  <MedicalNoteBlock label="Findings" value={record.findings} />
+                  <MedicalNoteBlock label="Diagnosis" value={record.diagnosis} />
+                  <MedicalNoteBlock label="Treatment Plan" value={record.treatment} />
+                  <MedicalNoteBlock label="Notes & Context" value={record.notes} />
+                </div>
+
+                {record.trainingDecision && (
+                  <div className="mt-2.5 flex items-center gap-2">
+                    <span
+                      className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${
+                        record.trainingDecision === 'ALLOWED'
+                          ? 'bg-[var(--color-success-soft)] text-[var(--color-success)]'
+                          : 'bg-[var(--color-danger-soft)] text-[var(--color-danger)]'
+                      }`}
+                    >
+                      Training Decision: {record.trainingDecision}
+                    </span>
+                  </div>
+                )}
+
+                {record.restrictionDetails && (
+                  <div className="mt-2 rounded bg-[var(--color-warning-soft)] p-2 text-xs text-[var(--color-warning)]">
+                    <strong>Restriction Protocol:</strong> {record.restrictionDetails}
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-2 text-xs text-[var(--color-text-muted)] italic">
+            No health records filed for this candidate yet.
+          </p>
+        )}
+      </div>
+
+      <div className="border-t border-[var(--color-border)] pt-4">
+        <h3 className="text-sm font-bold text-[var(--color-text-primary)]">
+          Examination Schedule Log
+        </h3>
+        {selectedHistory.length > 0 ? (
+          <ol className="mt-3 space-y-2.5">
+            {selectedHistory.map((item, idx) => (
+              <li
+                key={`${item.id}-${idx}`}
+                className="flex items-start gap-3 rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface-subtle)] p-3 text-xs"
+              >
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary-soft)] text-xs font-bold text-[var(--color-primary)]">
+                  {idx + 1}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-bold text-[var(--color-text-primary)]">
+                      {item.label}
+                    </span>
+                    <Pill tone={examTone(item.status)} size="sm">
+                      {formatLabel(item.status)}
+                    </Pill>
+                  </div>
+                  <p className="mt-0.5 text-xs text-[var(--color-text-secondary)]">
+                    {item.description}
+                  </p>
+                  <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-[var(--color-text-muted)]">
+                    <span>Scheduled: {item.scheduledAt ? formatDate(item.scheduledAt, true) : 'Pending'}</span>
+                    <span>·</span>
+                    <span>Assigned Vet: {item.assignedVetId ? `#${item.assignedVetId}` : 'Unassigned'}</span>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p className="mt-2 text-xs text-[var(--color-text-muted)] italic">
+            No care schedule logs recorded.
+          </p>
+        )}
+      </div>
+    </div>
   );
 }
 
